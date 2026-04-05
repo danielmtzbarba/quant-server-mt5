@@ -164,6 +164,8 @@ resource "google_iam_workload_identity_pool_provider" "github_provider" {
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
+
+  attribute_condition = "assertion.repository == 'danielmtzbarba/quant-server-mt5'"
 }
 
 # Allow GitHub to impersonate the Service Account
