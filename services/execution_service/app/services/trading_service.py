@@ -43,7 +43,10 @@ class TradingService:
                         return False, "MAX_POSITIONS_REACHED"
 
                 # 2. Create PENDING Order in DB
+                import time
+                order_id = int(time.time() * 1000)
                 order_payload = {
+                    "id": order_id,
                     "broker_account_id": 1,  # Default
                     "symbol": symbol,
                     "action": signal.action.upper(),
