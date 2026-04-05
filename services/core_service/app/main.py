@@ -158,8 +158,13 @@ async def create_alert(
 ):
     logger.info(f"DB: CREATE Alert (User {user_id} -> {symbol} @ {price})")
     repo = AlertRepository(db)
+    # Correct field names for the Alert model: stock_id, target_price
     return await repo.create(
-        user_id=user_id, symbol=symbol.upper(), target_price=price, condition=condition
+        user_id=user_id,
+        stock_id=symbol.upper(),
+        target_price=price,
+        condition=condition,
+        market="FX",  # Default for testing
     )
 
 
@@ -196,9 +201,14 @@ async def get_account_user(account_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.post("/orders")
 async def create_order(order_data: dict, db: AsyncSession = Depends(get_db)):
+    # Standardize incoming payload keys for the Order model:
+    # symbol -> symbol (OK), action -> action (OK), volume -> quantity
+    if "volume" in order_data and "quantity" not in order_data:
+        order_data["quantity"] = order_data.pop("volume")
+
     symbol = order_data.get("symbol", "UNK")
     logger.info(f"DB: CREATE Order ({symbol})")
-    # Simple order creation logic
+
     order = Order(**order_data)
     db.add(order)
     await db.commit()

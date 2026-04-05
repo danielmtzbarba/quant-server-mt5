@@ -37,8 +37,11 @@ Explore the detailed architecture and implementation details:
 1.  **[System Architecture](docs/architecture.md)**: High-level design, data flows, and service interactions.
 2.  **[Microservices Deep Dive](docs/services.md)**: Individual service roles, port assignments, and API endpoints.
 3.  **[Infrastructure & Dev-Ops](docs/infrastructure.md)**: Docker orchestration, Terraform IaC, and GitHub Actions CI/CD.
-4.  **[Data Layer](docs/database.md)**: PostgreSQL schemas, InfluxDB usage, and Alembic migrations.
-5.  **[Local Development](docs/development.md)**: Step-by-step setup, running tests, and `uv` workspace commands.
+4.  **[CI/CD & Automation](docs/cicd.md)**: Quality Assurance pipelines, testing strategies, and manual validation.
+5.  **[Data Layer](docs/database.md)**: PostgreSQL schemas, InfluxDB usage, and Alembic migrations.
+6.  **[Local Development](docs/development.md)**: Step-by-step setup, running tests, and `uv` workspace commands.
+7.  **[Hybrid Cloud Setup](docs/hybrid_setup.md)**: Guide for connecting your GCP VM to Local Databases.
+8.  **[GCP & GitHub Secrets Setup](docs/secrets_setup.md)**: Guide for authorizing automated deployments.
 
 ---
 

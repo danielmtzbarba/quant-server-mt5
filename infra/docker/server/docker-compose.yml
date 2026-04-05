@@ -15,7 +15,7 @@ services:
       - ../../envs/shared.env
       - ../../envs/core.env
     environment:
-      - PYTHONPATH=/app/libs:/app/services/core_service/app
+      - PYTHONPATH=/app/libs/common_logging/src:/app/libs/common_config/src:/app/libs/common_events/src:/app/libs/common_models/src:/app/services/core_service/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
@@ -55,9 +55,7 @@ services:
     environment:
       - CORE_SERVICE_URL=http://core_service:8001
       - MESSAGING_SERVICE_URL=http://messaging_service:8003
-      - PYTHONPATH=/app/libs:/app/services/execution_service/app
-    depends_on:
-      - core-service
+      - PYTHONPATH=/app/libs/common_logging/src:/app/libs/common_config/src:/app/libs/common_events/src:/app/libs/common_models/src:/app/services/execution_service/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
@@ -97,10 +95,7 @@ services:
     environment:
       - CORE_SERVICE_URL=http://core_service:8001
       - EXECUTION_SERVICE_URL=http://execution_service:8002
-      - PYTHONPATH=/app/libs:/app/services/messaging_service/app
-    depends_on:
-      - core-service
-      - execution-service
+      - PYTHONPATH=/app/libs/common_logging/src:/app/libs/common_config/src:/app/libs/common_events/src:/app/libs/common_models/src:/app/services/messaging_service/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
