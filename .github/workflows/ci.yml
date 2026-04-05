@@ -1,38 +1,96 @@
-name: CI
+name: CI (Quality Assurance)
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ '**' ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ '**' ]
+  workflow_dispatch:
 
 jobs:
-  lint-and-test:
+  qa:
+    name: Lint & Test
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: "pyproject.toml"
+        run: uv python install
 
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --dev
 
-      - name: Run Ruff
+      - name: Run Ruff (Linting)
         run: uv run ruff check .
 
-      - name: Run Core Service Tests
-        run: uv run --project services/core_service pytest services/core_service/tests
+      - name: Run Ruff (Formatting Check)
+        run: uv run ruff format --check .
 
-      - name: Run Execution Service Tests
-        run: uv run --project services/execution_service pytest services/execution_service/tests
+      - name: Run Tests (Pytest)
+        run: uv run pytest
 
-      - name: Run Messaging Service Tests
-        run: uv run --project services/messaging_service pytest services/messaging_service/tests
+  build-and-push:
+    name: Build & Push to GHCR
+    needs: qa
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        service: [core_service, execution_service, messaging_service]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Authenticate to GCP (Keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: github-actions-deployer@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:${{ github.sha }}
+
+  deploy:
+    name: Continuous Deployment
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Deploy to GCE via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GCP_VM_IP }}
+          username: ${{ secrets.GCP_VM_USER || 'danielmtz' }}
+          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          script: |
+            cd /app
+            export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
+            docker compose -f infra/docker/server/docker-compose.yml pull
+            docker compose -f infra/docker/server/docker-compose.yml up -d

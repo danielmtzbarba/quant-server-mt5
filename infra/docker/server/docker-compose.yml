@@ -1,15 +1,21 @@
 services:
   core-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/core_service:latest
     build:
       context: ../../../
       dockerfile: services/core_service/Dockerfile
     container_name: core_service
+    volumes:
+      - ../../../services/core_service/app:/app/services/core_service/app
+      - ../../../libs:/app/libs
     restart: unless-stopped
     ports:
       - "8001:8001"
     env_file:
       - ../../envs/shared.env
       - ../../envs/core.env
+    environment:
+      - PYTHONPATH=/app/libs:/app/services/core_service/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:
@@ -32,10 +38,14 @@ services:
           action: rebuild
 
   execution-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/execution_service:latest
     build:
       context: ../../../
       dockerfile: services/execution_service/Dockerfile
     container_name: execution_service
+    volumes:
+      - ../../../services/execution_service/app:/app/services/execution_service/app
+      - ../../../libs:/app/libs
     restart: unless-stopped
     ports:
       - "8002:8002"
@@ -45,6 +55,7 @@ services:
     environment:
       - CORE_SERVICE_URL=http://core_service:8001
       - MESSAGING_SERVICE_URL=http://messaging_service:8003
+      - PYTHONPATH=/app/libs:/app/services/execution_service/app
     depends_on:
       - core-service
     extra_hosts:
@@ -69,10 +80,14 @@ services:
           action: rebuild
 
   messaging-service:
+    image: ghcr.io/danielmtzbarba/messaging_service:latest
     build:
       context: ../../../
       dockerfile: services/messaging_service/Dockerfile
     container_name: messaging_service
+    volumes:
+      - ../../../services/messaging_service/app:/app/services/messaging_service/app
+      - ../../../libs:/app/libs
     restart: unless-stopped
     ports:
       - "8003:8003"
@@ -82,6 +97,7 @@ services:
     environment:
       - CORE_SERVICE_URL=http://core_service:8001
       - EXECUTION_SERVICE_URL=http://execution_service:8002
+      - PYTHONPATH=/app/libs:/app/services/messaging_service/app
     depends_on:
       - core-service
       - execution-service

@@ -73,7 +73,7 @@ resource "google_secret_manager_secret" "admin_token" {
   }
 }
 
-# 4. GCE Instance (e2-micro)
+  # 4. GCE Instance (e2-micro)
 resource "google_compute_instance" "quant_vm" {
   name         = var.instance_name
   machine_type = var.machine_type
@@ -98,29 +98,77 @@ resource "google_compute_instance" "quant_vm" {
   metadata_startup_script = <<-EOT
     #!/bin/bash
     sudo apt-get update
-    sudo apt-get install -y docker.io git docker-compose-plugin
+    sudo apt-get install -y docker.io git docker-compose-plugin curl
+
+    # 1. Enable 2GB Swap (Crucial for e2-micro)
+    if [ ! -f /swapfile ]; then
+        sudo fallocate -l 2G /swapfile
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+    fi
+
+    # 2. Start Docker
     sudo systemctl start docker
     sudo systemctl enable docker
 
-    # Clone the repository
+    # 2. Install Tailscale (Networking)
+    curl -fsSL https://tailscale.com/install.sh | sh
+    # Note: User must still run 'sudo tailscale up' manually to authenticate
+
+    # 3. Clone Repository (for infra config)
+    mkdir -p /app
     git clone ${var.github_repo_url} /app
     cd /app
 
-    # Wait, the user wants us to ignore .env for a minute, 
-    # but the app won't run without it in production unless 
-    # we provide a fallback.
-    # For now, we'll just prepare the directory.
-    
-    # Example command to run the stack once envs are manually placed or fetched:
-    # docker compose -f infra/docker/server/docker-compose.yml up -d --build
+    # 4. Pull pre-built images from GHCR
+    # Ensuring the lowest startup time for the e2-micro
+    export GITHUB_REPOSITORY_OWNER=danielmtzbarba
+    docker compose -f infra/docker/server/docker-compose.yml pull
+
+    # 5. Success marker
+    echo "GCP VM Ready. Setup Tailscale and copy your .env files to /app/infra/envs/"
   EOT
 
-  # Ensure the service account has permission to read secrets if we automate fetching later
+  # Ensure the service account has permission to read secrets
   service_account {
-    scopes = ["cloud-platform"]
+    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 }
 
-output "instance_ip" {
-  value = google_compute_instance.quant_vm.network_interface[0].access_config[0].nat_ip
+# 5. Workload Identity Federation (Zero-Secret Auth for GitHub)
+resource "google_iam_workload_identity_pool" "github_pool" {
+  workload_identity_pool_id = "github-pool"
+  display_name              = "GitHub Pool"
+  description               = "Identity pool for GitHub Actions"
+}
+
+resource "google_iam_workload_identity_pool_provider" "github_provider" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github_pool.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-provider"
+  display_name                       = "GitHub Provider"
+  
+  attribute_mapping = {
+    "google.subject"             = "assertion.sub"
+    "attribute.actor"            = "assertion.actor"
+    "attribute.repository"       = "assertion.repository"
+    "attribute.repository_owner" = "assertion.repository_owner"
+  }
+
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+}
+
+# Allow GitHub to impersonate the Service Account
+# Restrict to the specific repository: danielmtzbarba/quant-server-mt5
+resource "google_service_account_iam_member" "wif_binding" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/github-actions-deployer@${var.project_id}.iam.gserviceaccount.com"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_pool.name}/attribute.repository/danielmtzbarba/quant-server-mt5"
+}
+
+output "wif_provider_name" {
+  value = google_iam_workload_identity_pool_provider.github_provider.name
 }

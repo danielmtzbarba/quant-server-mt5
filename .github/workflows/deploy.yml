@@ -10,9 +10,9 @@ jobs:
     name: 'Terraform'
     runs-on: ubuntu-latest
 
-    # Set up GCP credentials as environment variables
+    # Set up GCP configuration
     env:
-      GOOGLE_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     defaults:
       run:
@@ -20,7 +20,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (Keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: github-actions-deployer@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
