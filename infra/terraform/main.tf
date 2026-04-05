@@ -35,10 +35,10 @@ resource "google_compute_firewall" "restricted_access" {
   # Restrict to: My IP + Meta Webhook Ranges
   source_ranges = [
     "${chomp(data.http.my_ip.response_body)}/32",
-    "31.13.24.0/21", "45.64.40.0/22", "66.220.144.0/20", 
-    "69.63.176.0/20", "69.171.224.0/19", "74.123.0.0/16", 
-    "103.4.96.0/22", "129.134.0.0/17", "157.240.0.0/16", 
-    "173.252.64.0/18", "179.60.192.0/22", "185.60.216.0/22", 
+    "31.13.24.0/21", "45.64.40.0/22", "66.220.144.0/20",
+    "69.63.176.0/20", "69.171.224.0/19", "74.123.0.0/16",
+    "103.4.96.0/22", "129.134.0.0/17", "157.240.0.0/16",
+    "173.252.64.0/18", "179.60.192.0/22", "185.60.216.0/22",
     "204.15.20.0/22"
   ]
   target_tags = ["quant-server"]
@@ -73,7 +73,7 @@ resource "google_secret_manager_secret" "admin_token" {
   }
 }
 
-  # 4. GCE Instance (e2-micro)
+# 4. GCE Instance (e2-micro)
 resource "google_compute_instance" "quant_vm" {
   name         = var.instance_name
   machine_type = var.machine_type
@@ -131,6 +131,11 @@ resource "google_compute_instance" "quant_vm" {
     echo "GCP VM Ready. Setup Tailscale and copy your .env files to /app/infra/envs/"
   EOT
 
+  # Inject SSH public key for GitHub Actions deployment
+  metadata = {
+    ssh-keys = "danielmtz:${var.ssh_public_key}"
+  }
+
   # Ensure the service account has permission to read secrets
   service_account {
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
@@ -148,7 +153,7 @@ resource "google_iam_workload_identity_pool_provider" "github_provider" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.github_pool.workload_identity_pool_id
   workload_identity_pool_provider_id = "github-provider"
   display_name                       = "GitHub Provider"
-  
+
   attribute_mapping = {
     "google.subject"             = "assertion.sub"
     "attribute.actor"            = "assertion.actor"
@@ -171,4 +176,9 @@ resource "google_service_account_iam_member" "wif_binding" {
 
 output "wif_provider_name" {
   value = google_iam_workload_identity_pool_provider.github_provider.name
+}
+
+output "vm_ip" {
+  value       = google_compute_instance.quant_vm.network_interface[0].access_config[0].nat_ip
+  description = "External IP of the GCE VM."
 }

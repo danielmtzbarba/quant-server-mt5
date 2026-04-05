@@ -2,9 +2,9 @@ name: CI (Quality Assurance)
 
 on:
   push:
-    branches: [ '**' ]
+    branches: ["**"]
   pull_request:
-    branches: [ '**' ]
+    branches: ["**"]
   workflow_dispatch:
 
 jobs:
@@ -47,7 +47,14 @@ jobs:
   build-and-push:
     name: Build & Push to GHCR
     needs: qa
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Only build when service code, libs, or Dockerfiles change
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      (contains(toJson(github.event.commits.*.modified), 'services/') ||
+       contains(toJson(github.event.commits.*.modified), 'libs/') ||
+       contains(toJson(github.event.commits.*.added), 'services/') ||
+       github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
 
     permissions:
@@ -89,7 +96,7 @@ jobs:
   deploy:
     name: Continuous Deployment
     needs: build-and-push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.GCP_VM_IP != ''
     runs-on: ubuntu-latest
     
     steps:
@@ -97,7 +104,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.GCP_VM_IP }}
-          username: ${{ secrets.GCP_VM_USER || 'danielmtz' }}
+          username: danielmtz
           key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
           script: |
             cd /app
