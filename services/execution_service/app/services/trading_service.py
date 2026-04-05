@@ -44,6 +44,7 @@ class TradingService:
 
                 # 2. Create PENDING Order in DB
                 import time
+
                 order_id = int(time.time() * 1000)
                 order_payload = {
                     "id": order_id,

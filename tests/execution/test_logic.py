@@ -12,16 +12,17 @@ async def test_trade_gating_max_positions(exec_client: AsyncClient, mocker):
 
     # 2. Mock the internal AsyncClient in trading_service specifically
     import httpx
+
     mock_client = mocker.AsyncMock(spec=httpx.AsyncClient)
     mock_client.__aenter__.return_value = mock_client
-    
+
     async def gating_side_effect(url, **kwargs):
         if "positions/active/count" in str(url):
             return Response(200, json={"count": 5})  # Equal to Max
         return Response(200, json={"status": "success"})
 
     mock_client.get.side_effect = gating_side_effect
-    
+
     mocker.patch("services.trading_service.httpx.AsyncClient", return_value=mock_client)
 
     # 3. Attempt to send a signal
@@ -45,6 +46,7 @@ async def test_signal_broadcast_success(exec_client: AsyncClient, mocker):
     mocker.patch("services.trading_service.MAX_POSITIONS", 5)
 
     import httpx
+
     mock_client = mocker.AsyncMock(spec=httpx.AsyncClient)
     mock_client.__aenter__.return_value = mock_client
 
