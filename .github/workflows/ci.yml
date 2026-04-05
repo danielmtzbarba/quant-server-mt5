@@ -12,6 +12,10 @@ jobs:
     name: Lint & Test
     runs-on: ubuntu-latest
 
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -35,13 +39,19 @@ jobs:
 
       - name: Run Tests (Pytest)
         run: uv run pytest
+        env:
+          PYTHONPATH: .
+          CORE_SERVICE_URL: http://localhost:8001
+          EXECUTION_SERVICE_URL: http://localhost:8002
 
   build-and-push:
     name: Build & Push to GHCR
     needs: qa
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+
     permissions:
+      id-token: write
       contents: read
       packages: write
 
@@ -63,8 +73,8 @@ jobs:
       - name: Authenticate to GCP (Keyless)
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: github-actions-deployer@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_ID }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-actions-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
 
       - name: Build and Push
         uses: docker/build-push-action@v5
