@@ -15,12 +15,25 @@ class MarketDataAPI:
     """
     A professional interface for interacting with the InfluxDB market data store.
     Handles connection pooling, query construction, and DataFrame formatting.
+    Connection is established lazily on first use.
     """
 
     def __init__(self, env_path: str = ".env"):
-        """Initializes the database connection using environment variables."""
-        load_dotenv(env_path)
+        """Stores config path. Actual connection is deferred to first use."""
+        self._env_path = env_path
+        self._client: Optional[InfluxDBClient] = None
+        self.query_api = None
+        self.write_api = None
+        self.url = None
+        self.token = None
+        self.org = None
+        self.bucket = None
 
+    def _connect(self):
+        """Lazily initializes the InfluxDB connection on first use."""
+        if self._client is not None:
+            return
+        load_dotenv(self._env_path)
         self.url = os.getenv("INFLUX_URL")
         self.token = os.getenv("INFLUX_TOKEN")
         self.org = os.getenv("INFLUX_ORG")
@@ -30,11 +43,11 @@ class MarketDataAPI:
             raise ValueError("Missing critical InfluxDB environment variables.")
 
         # Initialize the client with a 30s timeout for large historical queries
-        self.client = InfluxDBClient(
+        self._client = InfluxDBClient(
             url=self.url, token=self.token, org=self.org, timeout=30_000
         )
-        self.query_api = self.client.query_api()
-        self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
+        self.query_api = self._client.query_api()
+        self.write_api = self._client.write_api(write_options=SYNCHRONOUS)
 
     def get_historical_data(
         self, symbol: str, start: str, stop: str = "now()"
@@ -51,6 +64,7 @@ class MarketDataAPI:
             pd.DataFrame: A formatted Pandas DataFrame with DatetimeIndex and OHLCV columns.
         """
         logger.debug(f"DB: Fetching {symbol} ({start})")
+        self._connect()
 
         flux_query = f'''
         from(bucket: "{self.bucket}")
@@ -96,6 +110,7 @@ class MarketDataAPI:
         Uses a optimized query to handle large datasets efficiently.
         """
         symbol = symbol.strip()
+        self._connect()
         flux_query = f'''
         from(bucket: "{self.bucket}")
           |> range(start: -100y)
@@ -126,6 +141,7 @@ class MarketDataAPI:
         """
         if df.empty:
             return True
+        self._connect()
 
         try:
             points = []
@@ -207,6 +223,7 @@ class MarketDataAPI:
             pd.DataFrame: A formatted Pandas DataFrame with the resampled OHLCV data.
         """
         logger.debug(f"DB: Resampling {symbol} {interval} ({start})")
+        self._connect()
 
         # We split the data by field, apply the correct mathematical aggregation,
         # and then union them back together before pivoting into a clean table.
@@ -260,7 +277,8 @@ class MarketDataAPI:
 
     def close(self):
         """Closes the InfluxDB client connection safely."""
-        self.client.close()
+        if self._client is not None:
+            self._client.close()
 
     def __enter__(self):
         """Allows use of the API with context managers (the 'with' statement)."""
