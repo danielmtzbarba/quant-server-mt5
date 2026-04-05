@@ -5,9 +5,6 @@ services:
       context: ../../../
       dockerfile: services/core_service/Dockerfile
     container_name: core_service
-    volumes:
-      - ../../../services/core_service/app:/app/services/core_service/app
-      - ../../../libs:/app/libs
     restart: unless-stopped
     ports:
       - "8001:8001"
@@ -24,18 +21,6 @@ services:
           memory: 256m
         reservations:
           memory: 128m
-    develop:
-      watch:
-        - path: services/core_service/app
-          action: sync+restart
-          target: /app/services/core_service/app
-        - path: libs
-          action: sync+restart
-          target: /app/libs
-        - path: pyproject.toml
-          action: rebuild
-        - path: uv.lock
-          action: rebuild
 
   execution-service:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/execution_service:latest
@@ -43,9 +28,6 @@ services:
       context: ../../../
       dockerfile: services/execution_service/Dockerfile
     container_name: execution_service
-    volumes:
-      - ../../../services/execution_service/app:/app/services/execution_service/app
-      - ../../../libs:/app/libs
     restart: unless-stopped
     ports:
       - "8002:8002"
@@ -64,18 +46,6 @@ services:
           memory: 256m
         reservations:
           memory: 128m
-    develop:
-      watch:
-        - path: services/execution_service/app
-          action: sync+restart
-          target: /app/services/execution_service/app
-        - path: libs
-          action: sync+restart
-          target: /app/libs
-        - path: pyproject.toml
-          action: rebuild
-        - path: uv.lock
-          action: rebuild
 
   messaging-service:
     image: ghcr.io/danielmtzbarba/messaging_service:latest
@@ -83,9 +53,6 @@ services:
       context: ../../../
       dockerfile: services/messaging_service/Dockerfile
     container_name: messaging_service
-    volumes:
-      - ../../../services/messaging_service/app:/app/services/messaging_service/app
-      - ../../../libs:/app/libs
     restart: unless-stopped
     ports:
       - "8003:8003"
@@ -104,16 +71,4 @@ services:
           memory: 256m
         reservations:
           memory: 128m
-    develop:
-      watch:
-        - path: services/messaging_service/app
-          action: sync+restart
-          target: /app/services/messaging_service/app
-        - path: libs
-          action: sync+restart
-          target: /app/libs
-        - path: pyproject.toml
-          action: rebuild
-        - path: uv.lock
-          action: rebuild
 
