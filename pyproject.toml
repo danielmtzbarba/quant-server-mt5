@@ -23,6 +23,10 @@ dependencies = [
     "python-multipart>=0.0.9",
     "influxdb-client>=1.40.0",
     "plotly>=5.18.0",
+    "common-logging",
+    "common-config",
+    "common-events",
+    "common-models",
 ]
 
 [tool.uv.workspace]
@@ -52,4 +56,9 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [
+    ".",
+    "services/core_service/app",
+    "services/execution_service/app",
+    "services/messaging_service/app",
+]

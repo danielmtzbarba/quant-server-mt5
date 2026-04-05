@@ -1,21 +1,8 @@
 import pytest
-import sys
-from pathlib import Path
 from typing import AsyncGenerator
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import StaticPool
-
-# 1. Setup PYTHONPATH dynamically
-ROOT_DIR = Path(__file__).parent.parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.append(str(ROOT_DIR))
-
-# Add service APPs to sys.path
-for service in ["core_service", "execution_service", "messaging_service"]:
-    app_path = str(ROOT_DIR / "services" / service / "app")
-    if app_path not in sys.path:
-        sys.path.append(app_path)
 
 # Force pytest-asyncio
 pytest_plugins = ["pytest_asyncio"]
