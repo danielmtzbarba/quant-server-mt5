@@ -71,4 +71,3 @@ services:
           memory: 256m
         reservations:
           memory: 128m
-

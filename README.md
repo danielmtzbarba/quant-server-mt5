@@ -2,7 +2,7 @@
 
 [![Deploy to GCP](https://github.com/USER/mt5-quant-server/actions/workflows/deploy.yml/badge.svg)](https://github.com/USER/mt5-quant-server/actions/workflows/deploy.yml)
 
-A professional, industrial-grade microservices ecosystem designed for real-time algorithmic trading and portfolio management via WhatsApp. It bridges the gap between a **MetaTrader 5 (MT5)** terminal and the **WhatsApp Cloud API**, utilizing **OpenAI** for high-performance natural language execution.
+A microservices ecosystem designed for algorithmic trading and portfolio management via WhatsApp. It bridges the gap between a **MetaTrader 5 (MT5)** terminal and the **WhatsApp Cloud API**, utilizing **OpenAI** for high-performance natural language execution.
 
 ---
 
