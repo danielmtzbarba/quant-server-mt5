@@ -63,6 +63,11 @@ jobs:
           username: danielmtz
           key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
           script: |
+            # --- Wait for Startup Script ---
+            echo "Waiting for Docker and Git to be installed by startup script..."
+            timeout 300s bash -c 'until command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; do sleep 10; done'
+            
+            # --- Perform Deployment ---
             cd /app && git pull
             export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
             docker compose -f infra/docker/server/docker-compose.yml pull
