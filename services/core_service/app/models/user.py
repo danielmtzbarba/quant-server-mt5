@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from .alert import Alert
     from .auth import LoginToken
 
+
 class User(Base):
     __tablename__ = "users"
 
@@ -21,7 +22,15 @@ class User(Base):
     fx_capital: Mapped[float] = mapped_column(Float, default=0.0)
 
     # Relationships
-    watchlist_items: Mapped[List["WatchlistItem"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    broker_accounts: Mapped[List["BrokerAccount"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    alerts: Mapped[List["Alert"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    login_tokens: Mapped[List["LoginToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    watchlist_items: Mapped[List["WatchlistItem"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    broker_accounts: Mapped[List["BrokerAccount"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    alerts: Mapped[List["Alert"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    login_tokens: Mapped[List["LoginToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )

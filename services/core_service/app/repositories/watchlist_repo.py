@@ -1,7 +1,8 @@
 from typing import List
 from sqlalchemy import select, delete
-from models.watchlist import WatchlistItem, PortfolioItem
+from models.watchlist import WatchlistItem
 from .base import BaseRepository
+
 
 class WatchlistRepository(BaseRepository[WatchlistItem]):
     def __init__(self, session):
@@ -24,22 +25,24 @@ class WatchlistRepository(BaseRepository[WatchlistItem]):
         # Check if already exists in this market
         result = await self.session.execute(
             select(WatchlistItem).where(
-                WatchlistItem.user_id == user_id, 
+                WatchlistItem.user_id == user_id,
                 WatchlistItem.stock_id == symbol.upper(),
-                WatchlistItem.market == market.upper()
+                WatchlistItem.market == market.upper(),
             )
         )
         if result.scalar_one_or_none():
             return False
-            
-        await self.create(user_id=user_id, stock_id=symbol.upper(), market=market.upper())
+
+        await self.create(
+            user_id=user_id, stock_id=symbol.upper(), market=market.upper()
+        )
         return True
 
     async def remove_symbol(self, user_id: int, symbol: str) -> bool:
         result = await self.session.execute(
             delete(WatchlistItem).where(
-                WatchlistItem.user_id == user_id, 
-                WatchlistItem.stock_id == symbol.upper()
+                WatchlistItem.user_id == user_id,
+                WatchlistItem.stock_id == symbol.upper(),
             )
         )
         await self.session.commit()

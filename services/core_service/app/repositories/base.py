@@ -3,9 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 from core.base import Base
 from common_logging import setup_logging
+
 logger = setup_logging("core-service")
 
 T = TypeVar("T", bound=Base)
+
 
 class BaseRepository(Generic[T]):
     def __init__(self, model: Type[T], session: AsyncSession):

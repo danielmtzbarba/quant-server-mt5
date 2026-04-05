@@ -8,16 +8,11 @@ from sqlalchemy import pool
 from alembic import context
 
 # Add the project root to the path so we can import our modules
-sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..")))
 
 load_dotenv()
 
-from core.base import Base
-from models.user import User
-from models.watchlist import WatchlistItem, PortfolioItem
-from models.trading import BrokerAccount, Order, Position
-from models.alert import Alert, NotificationDelivery
-from models.auth import LoginToken
+from core.base import Base  # noqa: E402
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -84,9 +79,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

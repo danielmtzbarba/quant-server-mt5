@@ -1,16 +1,15 @@
-import os
 from langgraph.prebuilt import create_react_agent
-from langchain_core.messages import SystemMessage, HumanMessage
 
 from . import tools
+
 
 def get_agent_executor():
     # Define our tools
     agent_tools = [
-        tools.create_watchlist, 
-        tools.delete_watchlist, 
+        tools.create_watchlist,
+        tools.delete_watchlist,
         tools.get_watchlist,
-        tools.create_alert, 
+        tools.create_alert,
         tools.delete_alert,
         tools.get_alerts,
         tools.get_price,
@@ -18,9 +17,9 @@ def get_agent_executor():
         tools.close_position,
         tools.get_positions,
         tools.refresh_mt5_data,
-        tools.verify_mt5_commands
+        tools.verify_mt5_commands,
     ]
-    
+
     # Define system instructions
     system_prompt = """You are a concise financial assistant for WhatsApp.
 Primary tasks: Provide stock prices, manage watchlists, manage price alerts, and execute MT5 trades.
@@ -42,12 +41,16 @@ GENERAL RULES:
 """
 
     from langchain_openai import ChatOpenAI
+
     chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
 
     # Create the ReAct agent
-    agent_executor = create_react_agent(chat_model, tools=agent_tools, prompt=system_prompt)
-    
+    agent_executor = create_react_agent(
+        chat_model, tools=agent_tools, prompt=system_prompt
+    )
+
     return agent_executor
+
 
 # Singleton instance for the app to use
 agent_executor = get_agent_executor()

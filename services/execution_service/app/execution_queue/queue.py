@@ -1,5 +1,7 @@
 from common_logging import setup_logging
+
 logger = setup_logging("execution-service")
+
 
 class MT5CommandQueue:
     _instance = None
@@ -23,6 +25,7 @@ class MT5CommandQueue:
 
     def get_all_pending(self):
         return self._queue
+
 
 # Singleton instance
 mt5_queue = MT5CommandQueue()

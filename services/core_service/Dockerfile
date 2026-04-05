@@ -1,17 +1,25 @@
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+# Stage 1: Build environment
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 WORKDIR /app
-
-# Copy root configuration
 COPY pyproject.toml uv.lock ./
-# Copy libraries and services to satisfy workspace requirements
 COPY libs/ ./libs/
-COPY services/ ./services/
-COPY static/ ./static/
-COPY templates/ ./templates/
-
-# Install the entire workspace dependencies
+COPY services/core_service/ ./services/core_service/
+# Ensure only core_service dependencies are resolved if possible, 
+# but uv sync root is safer for workspace consistency.
 RUN uv sync --frozen --no-dev
 
+# Stage 2: Runtime
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+WORKDIR /app
+# Copy the synchronized environment and code
+COPY --from=builder /app/.venv /app/.venv
+COPY libs/ /app/libs/
+COPY services/core_service/app /app/services/core_service/app
+COPY static/ /app/static/
+COPY templates/ /app/templates/
+
+# Ensure 'uv' uses the pre-built environment
+ENV PATH="/app/.venv/bin:$PATH"
 WORKDIR /app/services/core_service/app
 CMD ["uv", "run", "python", "main.py"]

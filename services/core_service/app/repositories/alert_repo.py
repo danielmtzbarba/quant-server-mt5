@@ -2,6 +2,7 @@ from sqlalchemy import select, delete
 from models.alert import Alert
 from .base import BaseRepository
 
+
 class AlertRepository(BaseRepository[Alert]):
     def __init__(self, session):
         super().__init__(Alert, session)

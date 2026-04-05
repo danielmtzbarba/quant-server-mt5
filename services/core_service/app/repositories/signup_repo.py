@@ -1,6 +1,7 @@
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update
 from models.auth import SignupSession
 from .base import BaseRepository
+
 
 class SignupRepository(BaseRepository[SignupSession]):
     def __init__(self, session):
@@ -12,7 +13,9 @@ class SignupRepository(BaseRepository[SignupSession]):
         )
         return result.scalar_one_or_none()
 
-    async def update_by_phone(self, phone_number: str, **kwargs) -> SignupSession | None:
+    async def update_by_phone(
+        self, phone_number: str, **kwargs
+    ) -> SignupSession | None:
         await self.session.execute(
             update(SignupSession)
             .where(SignupSession.phone_number == phone_number)

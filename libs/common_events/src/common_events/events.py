@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import Optional, List, Dict
+from typing import Optional
+
 
 class Candle(BaseModel):
     open: float
@@ -7,6 +8,7 @@ class Candle(BaseModel):
     low: float
     close: float
     volume: float
+
 
 class TradingSignal(BaseModel):
     symbol: str
@@ -17,12 +19,14 @@ class TradingSignal(BaseModel):
     sl: Optional[float] = None
     tp: Optional[float] = None
 
+
 class ExecutionRequest(BaseModel):
     action: str  # BUY, SELL, CLOSE
     symbol: str
     volume: float
     price: Optional[float] = None
     ticket: Optional[int] = None
+
 
 class PositionEvent(BaseModel):
     ticket: int
