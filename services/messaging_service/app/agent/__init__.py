@@ -1,3 +1,3 @@
-from .agent_graph import agent_executor
+from .agent_graph import get_agent_executor_singleton
 
-__all__ = ["agent_executor"]
+__all__ = ["get_agent_executor_singleton"]

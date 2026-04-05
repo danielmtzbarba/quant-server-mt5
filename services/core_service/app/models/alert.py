@@ -2,7 +2,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, ForeignKey, Float
 from core.base import Base
 from typing import TYPE_CHECKING, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 if TYPE_CHECKING:
     from .user import User
@@ -17,7 +17,9 @@ class Alert(Base):
     target_price: Mapped[float] = mapped_column(Float)
     condition: Mapped[str] = mapped_column(String(10))  # ABOVE, BELOW
     market: Mapped[str] = mapped_column(String(10))  # FX, STOCK
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc)
+    )
 
     user: Mapped["User"] = relationship(back_populates="alerts")
     deliveries: Mapped[List["NotificationDelivery"]] = relationship(
@@ -30,7 +32,9 @@ class NotificationDelivery(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id", ondelete="CASCADE"))
-    delivered_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    delivered_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc)
+    )
     status: Mapped[str] = mapped_column(String(20), default="SENT")
 
     alert: Mapped["Alert"] = relationship(back_populates="deliveries")

@@ -1,7 +1,7 @@
 import httpx
 from common_config import get_env_var
 from common_logging import setup_logging
-from agent import agent_executor
+from agent import get_agent_executor_singleton
 from langchain_core.messages import HumanMessage
 import whatsapp.msg_types as msgs
 from .whatsapp_service import whatsapp_service
@@ -68,7 +68,7 @@ class BotService:
                         HumanMessage(content=f"Mi número es {msg.number}. {msg.text}")
                     ]
                 }
-                result = await agent_executor.ainvoke(
+                result = await get_agent_executor_singleton().ainvoke(
                     state_input, {"recursion_limit": 15}
                 )
                 agent_reply = result["messages"][-1].content

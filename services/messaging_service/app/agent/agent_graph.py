@@ -1,4 +1,4 @@
-from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt import create_react_agent  # noqa: PLC0415
 
 from . import tools
 
@@ -52,5 +52,12 @@ GENERAL RULES:
     return agent_executor
 
 
-# Singleton instance for the app to use
-agent_executor = get_agent_executor()
+# Lazy singleton — only created on first real request, not at import time
+_agent_executor = None
+
+
+def get_agent_executor_singleton():
+    global _agent_executor
+    if _agent_executor is None:
+        _agent_executor = get_agent_executor()
+    return _agent_executor

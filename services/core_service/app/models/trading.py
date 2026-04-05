@@ -2,7 +2,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, ForeignKey, Float, BigInteger, Integer
 from core.base import Base
 from typing import TYPE_CHECKING, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 if TYPE_CHECKING:
     from .user import User
@@ -38,7 +38,9 @@ class Order(Base):
     quantity: Mapped[float] = mapped_column(Float)
     price: Mapped[float] = mapped_column(Float)
     status: Mapped[str] = mapped_column(String(20), default="PENDING")
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc)
+    )
 
     broker_account: Mapped["BrokerAccount"] = relationship(back_populates="orders")
 

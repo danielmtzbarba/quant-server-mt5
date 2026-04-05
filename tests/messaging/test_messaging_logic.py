@@ -16,12 +16,14 @@ async def test_receive_whatsapp_message_flow(msg_client: AsyncClient, mocker):
     )
     mocker.patch("services.bot_service.httpx.AsyncClient", return_value=mock_httpx)
 
-    # 2. Mock Agent/AI
+    # 2. Mock Agent/AI — patch the lazy singleton to return a mock executor
+    mock_executor = mocker.AsyncMock()
     mock_ai_resp = mocker.Mock()
     mock_ai_resp.content = "Sure, I'll help with that."
+    mock_executor.ainvoke.return_value = {"messages": [mock_ai_resp]}
     mocker.patch(
-        "services.bot_service.agent_executor.ainvoke",
-        return_value={"messages": [mock_ai_resp]},
+        "services.bot_service.get_agent_executor_singleton",
+        return_value=mock_executor,
     )
 
     # 3. Mock WhatsApp Send

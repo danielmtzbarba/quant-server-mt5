@@ -62,3 +62,6 @@ pythonpath = [
     "services/execution_service/app",
     "services/messaging_service/app",
 ]
+filterwarnings = [
+    "ignore::DeprecationWarning:langgraph",
+]
