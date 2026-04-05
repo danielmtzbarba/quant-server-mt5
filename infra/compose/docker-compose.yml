@@ -1,0 +1,100 @@
+services:
+  postgres:
+    image: postgres:16.3-alpine
+    container_name: postgres
+    restart: unless-stopped
+    env_file:
+      - ../envs/shared.env
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+        reservations:
+          memory: 512m
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c work_mem=8MB
+      -c maintenance_work_mem=64MB
+      -c effective_cache_size=512MB
+      -c max_connections=50
+
+  core-service:
+    build:
+      context: ../../
+      dockerfile: services/core_service/Dockerfile
+    container_name: core_service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    env_file:
+      - ../envs/shared.env
+      - ../envs/core.env
+    depends_on:
+      - postgres
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+        reservations:
+          memory: 128m
+
+  execution-service:
+    build:
+      context: ../../
+      dockerfile: services/execution_service/Dockerfile
+    container_name: execution_service
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    env_file:
+      - ../envs/shared.env
+      - ../envs/execution.env
+    environment:
+      - CORE_SERVICE_URL=http://core_service:8001
+      - MESSAGING_SERVICE_URL=http://messaging_service:8003
+    depends_on:
+      - core-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+        reservations:
+          memory: 128m
+
+  messaging-service:
+    build:
+      context: ../../
+      dockerfile: services/messaging_service/Dockerfile
+    container_name: messaging_service
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    env_file:
+      - ../envs/shared.env
+      - ../envs/messaging.env
+    environment:
+      - CORE_SERVICE_URL=http://core_service:8001
+      - EXECUTION_SERVICE_URL=http://execution_service:8002
+    depends_on:
+      - core-service
+      - execution-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+        reservations:
+          memory: 128m
+
+volumes:
+  postgres_data:

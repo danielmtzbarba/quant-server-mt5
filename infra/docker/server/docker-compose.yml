@@ -1,0 +1,108 @@
+services:
+  core-service:
+    build:
+      context: ../../../
+      dockerfile: services/core_service/Dockerfile
+    container_name: core_service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    env_file:
+      - ../../envs/shared.env
+      - ../../envs/core.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+        reservations:
+          memory: 128m
+    develop:
+      watch:
+        - path: services/core_service/app
+          action: sync+restart
+          target: /app/services/core_service/app
+        - path: libs
+          action: sync+restart
+          target: /app/libs
+        - path: pyproject.toml
+          action: rebuild
+        - path: uv.lock
+          action: rebuild
+
+  execution-service:
+    build:
+      context: ../../../
+      dockerfile: services/execution_service/Dockerfile
+    container_name: execution_service
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    env_file:
+      - ../../envs/shared.env
+      - ../../envs/execution.env
+    environment:
+      - CORE_SERVICE_URL=http://core_service:8001
+      - MESSAGING_SERVICE_URL=http://messaging_service:8003
+    depends_on:
+      - core-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+        reservations:
+          memory: 128m
+    develop:
+      watch:
+        - path: services/execution_service/app
+          action: sync+restart
+          target: /app/services/execution_service/app
+        - path: libs
+          action: sync+restart
+          target: /app/libs
+        - path: pyproject.toml
+          action: rebuild
+        - path: uv.lock
+          action: rebuild
+
+  messaging-service:
+    build:
+      context: ../../../
+      dockerfile: services/messaging_service/Dockerfile
+    container_name: messaging_service
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    env_file:
+      - ../../envs/shared.env
+      - ../../envs/messaging.env
+    environment:
+      - CORE_SERVICE_URL=http://core_service:8001
+      - EXECUTION_SERVICE_URL=http://execution_service:8002
+    depends_on:
+      - core-service
+      - execution-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+        reservations:
+          memory: 128m
+    develop:
+      watch:
+        - path: services/messaging_service/app
+          action: sync+restart
+          target: /app/services/messaging_service/app
+        - path: libs
+          action: sync+restart
+          target: /app/libs
+        - path: pyproject.toml
+          action: rebuild
+        - path: uv.lock
+          action: rebuild
+

@@ -1,0 +1,20 @@
+[project]
+name = "core-service"
+version = "0.1.0"
+dependencies = [
+    "common-logging",
+    "common-config",
+    "common-events",
+    "fastapi",
+    "sqlalchemy",
+    "asyncpg",
+    "alembic",
+    "pydantic",
+    "jinja2>=3.1.6",
+    "uvicorn>=0.42.0",
+]
+
+[tool.uv.sources]
+common-logging = { workspace = true }
+common-config = { workspace = true }
+common-events = { workspace = true }

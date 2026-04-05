@@ -1,0 +1,17 @@
+services:
+  core-service:
+    build:
+      context: ../../../
+      dockerfile: services/core_service/Dockerfile
+    container_name: core_service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    env_file:
+      - ../../../.env
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+        reservations:
+          memory: 128m

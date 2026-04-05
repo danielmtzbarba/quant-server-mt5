@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ symbol }} - Market Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #26A69A;
+            --bg: #F8F9FA;
+            --card: #FFFFFF;
+            --text: #1A1A1A;
+            --border: #E0E0E0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+        }
+
+        .navbar {
+            background-color: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--primary);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background-color: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+        }
+
+        .chart-box {
+            background-color: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: #888;
+            font-size: 0.875rem;
+        }
+
+        .signal-banner {
+            padding: 1.25rem 2rem;
+            margin-bottom: 2rem;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .signal-hold { background: #ECEFF1; color: #546E7A; border-left: 6px solid #B0BEC5; }
+        .signal-buy { background: #E8F5E9; color: #2E7D32; border-left: 6px solid #4CAF50; }
+        .signal-sell { background: #FFEBEE; color: #C62828; border-left: 6px solid #F44336; }
+
+        .signal-tag {
+            font-size: 1.25rem;
+            letter-spacing: 1px;
+        }
+
+        .signal-levels {
+            display: flex;
+            gap: 2rem;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">TRADE_DB ENGINE</div>
+        <div class="symbol-badge" style="background: var(--primary); color: white; padding: 0.4rem 1rem; border-radius: 20px; font-weight: 600;">
+            {{ symbol }}
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- New Strategy Banner -->
+        <div class="signal-banner {% if latest_signal.action == 'BUY' %}signal-buy{% elif latest_signal.action == 'SELL' %}signal-sell{% else %}signal-hold{% endif %}">
+            <div class="signal-tag">
+                STRATEGY: <strong>{{ latest_signal.action }}</strong>
+            </div>
+            
+            {% if latest_signal.action != 'HOLD' %}
+            <div class="signal-levels">
+                <div>ENTRY: <strong>{{ latest_signal.entry_price|round(5) }}</strong></div>
+                <div style="color: #C62828;">STOP LOSS: <strong>{{ latest_signal.stop_loss|round(5) }}</strong></div>
+                <div style="color: #2E7D32;">TAKE PROFIT: <strong>{{ latest_signal.take_profit|round(5) }}</strong></div>
+            </div>
+            {% else %}
+            <div style="font-size: 0.9rem; opacity: 0.7;">Waiting for Support/Resistance rejection...</div>
+            {% endif %}
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ total_bars }}</div>
+                <div class="stat-label">Total Bars (M1)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color: var(--primary);">{{ last_price }}</div>
+                <div class="stat-label">Last Price</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ last_sync }}</div>
+                <div class="stat-label">Last DB Sync</div>
+            </div>
+        </div>
+
+        <div class="chart-box">
+            {{ chart_html | safe }}
+        </div>
+    </div>
+
+    <div class="footer">
+        &copy; 2026 TradeDB Microservice. Real-time InfluxDB Visualizer.
+    </div>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="StonksBot - Tu asistente financiero personal en WhatsApp. Recibe alertas de precios y monitorea tus acciones en tiempo real.">
+    <title>StonksBot | Inteligencia Financiera en tu WhatsApp</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+</head>
+<body>
+    <div class="bg-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <nav>
+        <div class="logo">StonksBot</div>
+        <div class="nav-links">
+            <!-- Space for future links -->
+        </div>
+    </nav>
+
+    <main>
+        <section class="hero">
+            <div class="hero-content">
+                <h1>Tu Portafolio <span class="gradient-text">en Tiempo Real</span></h1>
+                <p class="subtitle">La forma más rápida y elegante de recibir alertas de bolsa directamente en tu chat de WhatsApp.</p>
+                <a href="https://wa.me/message/YOUR_LINK" class="cta-button">Conectar en WhatsApp</a>
+            </div>
+        </section>
+
+        <section class="features">
+            <div class="feature-card">
+                <span class="feature-icon">📈</span>
+                <h3>Watchlist Persistente</h3>
+                <p>Gestiona tus acciones favoritas con comandos simples. Se guardan para siempre en nuestra base de datos segura.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🔔</span>
+                <h3>Alertas de Precio</h3>
+                <p>Di adiós a revisar el teléfono cada minuto. Te avisamos justo cuando el precio suba o baje de tu objetivo.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">⚡</span>
+                <h3>Respuesta Inmediata</h3>
+                <p>Arquitectura impulsada por FastAPI para que tus consultas de precio ocurran en milisegundos.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-text">
+            &copy; 2026 StonksBot. Todos los derechos reservados.<br>
+            Powered by FastAPI, TradeDB & SQLite.
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', path='/js/app.js') }}"></script>
+</body>
+</html>

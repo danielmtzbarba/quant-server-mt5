@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | StonksBot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+    <style>
+        .admin-container {
+            max-width: 1400px;
+            margin: 8rem auto 4rem;
+            padding: 0 2rem;
+        }
+
+        /* Tabs Styling */
+        .tabs-nav {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.5rem;
+            border-radius: 20px;
+            width: fit-content;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.8rem 1.5rem;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 24px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-card .value {
+            font-size: 3rem;
+            font-weight: 800;
+        }
+
+        .admin-section {
+            background: var(--card-bg);
+            border-radius: 32px;
+            padding: 2.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            margin-bottom: 2rem;
+        }
+
+        .admin-section h2 {
+            font-size: 1.6rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 1rem;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.9rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .badge-buy { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .badge-sell { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .badge-status { background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.2); }
+
+        .symbol-tag {
+            font-weight: 800;
+            color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .delete-btn {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            padding: 0.4rem 0.8rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 700;
+            transition: all 0.2s;
+        }
+
+        .delete-btn:hover {
+            background: #ef4444;
+            color: white;
+        }
+
+        .empty-row {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <nav>
+        <a href="/" class="logo" style="text-decoration: none;">StonksBot</a>
+        <div class="nav-links">
+            <a href="/" style="color: white; text-decoration: none; font-weight: 600;">Inicio</a>
+        </div>
+    </nav>
+
+    <div class="admin-container">
+        <header style="margin-bottom: 3rem;">
+            <h1 style="font-size: 3rem; font-weight: 800;">Panel de <span class="gradient-text">Administración</span></h1>
+            <p class="subtitle">Gestión integral de usuarios, cuentas y actividad de trading.</p>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="tabs-nav">
+            <button class="tab-btn active" onclick="showTab('overview')">Vista General</button>
+            <button class="tab-btn" onclick="showTab('users')">Usuarios</button>
+            <button class="tab-btn" onclick="showTab('trading')">Trading (MT5)</button>
+            <button class="tab-btn" onclick="showTab('alerts')">Alertas</button>
+            <button class="tab-btn" onclick="showTab('watchlist')">Watchlist</button>
+        </div>
+
+        <!-- TAB: OVERVIEW -->
+        <div id="overview" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Usuarios Totales</h3>
+                    <div class="value gradient-text">{{ stats.total_users }}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Alertas Activas</h3>
+                    <div class="value gradient-text">{{ stats.total_alerts }}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Cuentas Broker</h3>
+                    <div class="value gradient-text">{{ accounts | length }}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Posiciones</h3>
+                    <div class="value gradient-text">{{ stats.total_positions }}</div>
+                </div>
+            </div>
+            
+            <div class="admin-section">
+                <h2>📈 Actividad Reciente</h2>
+                <p style="color: var(--text-muted);">Bienvenido al centro de control. Selecciona una pestaña para ver detalles específicos.</p>
+            </div>
+        </div>
+
+        <!-- TAB: USERS -->
+        <div id="users" class="tab-content">
+            <section class="admin-section">
+                <h2>👥 Gestión de Usuarios</h2>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nombre</th>
+                                <th>WhatsApp</th>
+                                <th>Capital Stocks</th>
+                                <th>Capital FX</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>{{ user.id }}</td>
+                                <td style="font-weight: 600;">{{ user.name or 'User ' ~ user.id }}</td>
+                                <td style="color: var(--text-muted); font-family: monospace;">{{ user.phone_number }}</td>
+                                <td>${{ "%.2f" | format(user.stock_capital or 0) }}</td>
+                                <td>${{ "%.2f" | format(user.fx_capital or 0) }}</td>
+                                <td>
+                                    <button class="delete-btn" onclick="deleteRecord('user', {{ user.id }})">Eliminar</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- TAB: TRADING -->
+        <div id="trading" class="tab-content">
+            <!-- Broker Accounts -->
+            <section class="admin-section">
+                <h2>🏦 Cuentas de Broker</h2>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Broker</th>
+                                <th>N. Cuenta</th>
+                                <th>Tipo</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for acc in accounts %}
+                            <tr>
+                                <td style="font-weight: 600;">{{ acc.user.name or acc.user.phone_number }}</td>
+                                <td>{{ acc.broker_name }}</td>
+                                <td style="font-family: monospace; font-weight: 700;">{{ acc.account_number }}</td>
+                                <td><span class="badge badge-status">{{ acc.account_type }}</span></td>
+                                <td>
+                                    <button class="delete-btn" onclick="deleteRecord('account', {{ acc.id }})">Desconectar</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not accounts %}<tr><td colspan="5" class="empty-row">No hay cuentas broker vinculadas.</td></tr>{% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Positions -->
+            <section class="admin-section">
+                <h2>📊 Posiciones Abiertas</h2>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Ticket</th>
+                                <th>Símbolo</th>
+                                <th>Tipo</th>
+                                <th>Volumen</th>
+                                <th>Precio Open</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in positions %}
+                            <tr>
+                                <td style="color: var(--text-muted);">#{{ p.id }}</td>
+                                <td><span class="symbol-tag">{{ p.symbol }}</span></td>
+                                <td>
+                                    {% if p.type == 0 %}<span class="badge badge-buy">BUY</span>
+                                    {% elif p.type == 1 %}<span class="badge badge-sell">SELL</span>
+                                    {% else %}<span class="badge badge-status">UNKNOWN</span>{% endif %}
+                                </td>
+                                <td style="font-weight: 700; color: white;">{{ p.quantity }}</td>
+                                <td style="font-weight: 600; font-family: monospace;">${{ "%.5f" | format(p.average_price) }}</td>
+                                <td>
+                                    <button class="delete-btn" onclick="deleteRecord('position', {{ p.id }})">Hard-Delete</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not positions %}<tr><td colspan="6" class="empty-row">No hay posiciones abiertas.</td></tr>{% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Orders -->
+            <section class="admin-section">
+                <h2>📝 Órdenes Pendientes</h2>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Símbolo</th>
+                                <th>Acción</th>
+                                <th>Status</th>
+                                <th>Fecha</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for o in orders %}
+                            <tr>
+                                <td style="color: var(--text-muted);">#{{ o.id }}</td>
+                                <td><span class="symbol-tag">{{ o.symbol }}</span></td>
+                                <td style="font-weight: 700;">{{ o.action }}</td>
+                                <td><span class="badge badge-status">{{ o.status }}</span></td>
+                                <td style="font-size: 0.8rem; color: var(--text-muted);">{{ o.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <button class="delete-btn" onclick="deleteRecord('order', {{ o.id }})">Cancelar</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not orders %}<tr><td colspan="6" class="empty-row">No hay órdenes en espera.</td></tr>{% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- TAB: ALERTS -->
+        <div id="alerts" class="tab-content">
+            <section class="admin-section">
+                <h2>🔔 Alertas del Sistema</h2>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Símbolo</th>
+                                <th>Condición</th>
+                                <th>Target</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in alerts %}
+                            <tr>
+                                <td style="font-weight: 600;">{{ alert.user.name or alert.user.phone_number }}</td>
+                                <td><span class="symbol-tag">{{ alert.stock_id }}</span></td>
+                                <td style="font-weight: 700; color: {{ '#ef4444' if alert.condition == 'BELOW' else '#10b981' }};">
+                                    {{ alert.condition }}
+                                </td>
+                                <td style="font-weight: 600;">${{ "%.2f" | format(alert.target_price) }}</td>
+                                <td>
+                                    <button class="delete-btn" onclick="deleteRecord('alert', {{ alert.id }})">Eliminar</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not alerts %}<tr><td colspan="5" class="empty-row">No hay alertas configuradas.</td></tr>{% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- TAB: WATCHLIST -->
+        <div id="watchlist" class="tab-content">
+            <section class="admin-section">
+                <h2>👀 Watchlists de Usuarios</h2>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Símbolo</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for w in watchlist %}
+                            <tr>
+                                <td style="font-weight: 600;">{{ w.user.name or w.user.phone_number }}</td>
+                                <td><span class="symbol-tag">{{ w.symbol }}</span></td>
+                                <td>
+                                    <button class="delete-btn" onclick="deleteRecord('watchlist', {{ w.id }})">Remover</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not watchlist %}<tr><td colspan="3" class="empty-row">No hay elementos en watchlists.</td></tr>{% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabId) {
+            // Hide all contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            // Deactivate all buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            // Show target
+            document.getElementById(tabId).classList.add('active');
+            // Activate button
+            event.currentTarget.classList.add('active');
+        }
+
+        async function deleteRecord(type, id) {
+            if (!confirm(`¿Estás seguro de que quieres eliminar este ${type}?`)) return;
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token') || "{{ token }}";
+            
+            try {
+                const response = await fetch(`/admin/${type}/${id}?token=${token}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const err = await response.json();
+                    alert('Error: ' + (err.detail || 'Imposible eliminar'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error de conexión con el servidor');
+            }
+        }
+    </script>
+
+    <footer>
+        <div class="footer-text">
+            &copy; 2026 StonksBot. Dashboard Administrativo Centralizado.
+        </div>
+    </footer>
+</body>
+
+</html>

@@ -1,0 +1,344 @@
+from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import selectinload
+from sqlalchemy import select, delete
+from typing import List
+import uvicorn
+import logging
+import os
+from sqlalchemy.ext.asyncio import AsyncSession
+from core.database import get_db, SessionLocal
+from repositories.user_repo import UserRepository
+from repositories.watchlist_repo import WatchlistRepository
+from repositories.alert_repo import AlertRepository
+from models.user import User
+from models.alert import Alert
+from models.trading import Order, Position, BrokerAccount
+from models.watchlist import WatchlistItem
+from common_logging import setup_logging
+from common_config import get_env_var
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing Core Service...")
+    # Definitive runtime silence for Uvicorn logs
+    for name in ["uvicorn", "uvicorn.access", "uvicorn.error", "uvicorn.asgi"]:
+        l = logging.getLogger(name)
+        l.handlers = []
+        l.propagate = False
+        l.setLevel(logging.WARNING)
+    yield
+    logger.info("Shutting down Core Service...")
+
+logger = setup_logging("core-service", tag="CORE", color="cyan")
+
+app = FastAPI(title="Core Service", lifespan=lifespan)
+
+# Setup templates and static files (Root-relative)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Root is 3 levels up from core_service/app/
+ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, "../../../"))
+templates = Jinja2Templates(directory=os.path.join(ROOT_DIR, "templates"))
+app.mount("/static", StaticFiles(directory=os.path.join(ROOT_DIR, "static")), name="static")
+
+async def verify_admin_token(token: str | None = None):
+    admin_token = get_env_var("ADMIN_TOKEN")
+    if not admin_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin token not configured in .env"
+        )
+    if token != admin_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin token"
+        )
+    return token
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+# --- User Endpoints ---
+
+@app.get("/users/{phone_number}")
+async def get_user(phone_number: str, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: GET User {phone_number}")
+    repo = UserRepository(db)
+    user = await repo.get_by_phone(phone_number)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@app.post("/users")
+async def create_user(phone_number: str, name: str, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: CREATE User {phone_number} ({name})")
+    repo = UserRepository(db)
+    return await repo.create(phone_number=phone_number, name=name)
+
+@app.get("/watchlist/users/{symbol}")
+async def get_users_by_symbol(symbol: str, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: GET Observers -> {symbol}")
+    from sqlalchemy import select
+    from models.user import User
+    from models.watchlist import WatchlistItem
+    
+    result = await db.execute(
+        select(User)
+        .join(User.watchlist_items)
+        .where(WatchlistItem.stock_id == symbol.upper())
+    )
+    return result.scalars().all()
+
+# --- Watchlist Endpoints ---
+
+@app.get("/watchlist/{user_id}")
+async def get_watchlist(user_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: GET Watchlist (User {user_id})")
+    repo = WatchlistRepository(db)
+    return await repo.get_by_user(user_id)
+
+@app.post("/watchlist")
+async def add_to_watchlist(user_id: int, symbol: str, market: str, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: ADD Watchlist (User {user_id} -> {symbol})")
+    repo = WatchlistRepository(db)
+    success = await repo.add_symbol(user_id, symbol, market)
+    return {"success": success}
+
+@app.delete("/watchlist")
+async def remove_from_watchlist(user_id: int, symbol: str, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: REMOVE Watchlist (User {user_id} -> {symbol})")
+    repo = WatchlistRepository(db)
+    success = await repo.remove_symbol(user_id, symbol)
+    return {"success": success}
+
+# --- Alert Endpoints ---
+
+@app.get("/alerts/{user_id}")
+async def get_alerts(user_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: GET Alerts (User {user_id})")
+    repo = AlertRepository(db)
+    return await repo.get_by_user(user_id)
+
+@app.post("/alerts")
+async def create_alert(user_id: int, symbol: str, price: float, condition: str, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: CREATE Alert (User {user_id} -> {symbol} @ {price})")
+    repo = AlertRepository(db)
+    return await repo.create(user_id=user_id, symbol=symbol.upper(), target_price=price, condition=condition)
+
+@app.delete("/alerts/{alert_id}")
+async def delete_alert(alert_id: int, user_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: DELETE Alert {alert_id} (User {user_id})")
+    repo = AlertRepository(db)
+    success = await repo.delete_by_id_and_user(alert_id, user_id)
+    return {"success": success}
+
+# --- Account & User Mapping ---
+
+@app.get("/accounts/{account_id}/user")
+async def get_account_user(account_id: int, db: AsyncSession = Depends(get_db)):
+    from sqlalchemy import select
+    from models.trading import BrokerAccount
+    from models.user import User
+    
+    result = await db.execute(
+        select(User)
+        .join(BrokerAccount, User.id == BrokerAccount.user_id)
+        .where(BrokerAccount.id == account_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Account or User not found")
+    return user
+
+# --- Order & Execution State ---
+
+@app.post("/orders")
+async def create_order(order_data: dict, db: AsyncSession = Depends(get_db)):
+    symbol = order_data.get('symbol', 'UNK')
+    logger.info(f"DB: CREATE Order ({symbol})")
+    # Simple order creation logic
+    order = Order(**order_data)
+    db.add(order)
+    await db.commit()
+    await db.refresh(order)
+    return order
+
+@app.get("/positions/{account_id}")
+async def get_positions(account_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: GET Positions (Acc {account_id})")
+    from sqlalchemy import select
+    result = await db.execute(select(Position).where(Position.broker_account_id == account_id, Position.active_status == True))
+    return result.scalars().all()
+
+@app.post("/positions/sync")
+async def sync_positions(account_id: int, positions_data: List[dict], db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: SYNC Positions for Acc {account_id} ({len(positions_data)} active)")
+    from sqlalchemy import update, select
+    
+    # 1. Mark all existing positions for this account as inactive
+    await db.execute(
+        update(Position)
+        .where(Position.broker_account_id == account_id)
+        .values(active_status=False)
+    )
+    
+    # 2. Update or Create active positions
+    for p_data in positions_data:
+        ticket = p_data.get("ticket")
+        if ticket is None: continue
+        
+        result = await db.execute(select(Position).where(Position.id == ticket))
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            existing.quantity = p_data.get("volume", existing.quantity)
+            existing.average_price = p_data.get("price_open", existing.average_price)
+            existing.current_price = p_data.get("profit", existing.current_price)
+            existing.type = p_data.get("type", existing.type)
+            existing.active_status = True
+        else:
+            new_pos = Position(
+                id=ticket,
+                broker_account_id=account_id,
+                symbol=p_data.get("symbol"),
+                quantity=p_data.get("volume"),
+                type=p_data.get("type"),
+                average_price=p_data.get("price_open"),
+                current_price=p_data.get("profit"),
+                active_status=True
+            )
+            db.add(new_pos)
+            
+    await db.commit()
+    return {"status": "success"}
+
+@app.get("/positions/active/count")
+async def get_active_positions_count(db: AsyncSession = Depends(get_db)):
+    from sqlalchemy import select, func
+    from models.trading import Position
+    result = await db.execute(select(func.count()).select_from(Position).where(Position.active_status == True))
+    return {"count": result.scalar() or 0}
+
+@app.post("/positions/open")
+async def open_position(pos_data: dict, db: AsyncSession = Depends(get_db)):
+    from models.trading import Position, Order
+    from sqlalchemy import update
+    
+    # 1. Create/Update Position
+    new_pos = Position(
+        id=pos_data["ticket"],
+        broker_account_id=1,
+        symbol=pos_data["symbol"],
+        quantity=pos_data["volume"],
+        average_price=pos_data["price"],
+        type=pos_data.get("type"),
+        active_status=True
+    )
+    await db.merge(new_pos)
+    
+    # 2. Transition matching PENDING order to FILLED
+    action = "BUY" if pos_data.get("type") == 0 else "SELL" if pos_data.get("type") == 1 else None
+    if action:
+        await db.execute(
+            update(Order)
+            .where(Order.symbol == pos_data["symbol"])
+            .where(Order.action == action)
+            .where(Order.status == "PENDING")
+            .values(status="FILLED")
+        )
+    
+    await db.commit()
+    logger.info(f"DB: Position OPENED/SYNC {pos_data['ticket']}")
+    return {"status": "success"}
+
+@app.post("/positions/close")
+async def close_position(ticket: int, profit: float, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: CLOSE Position {ticket} (Profit: {profit})")
+    from sqlalchemy import select
+    result = await db.execute(select(Position).where(Position.id == ticket))
+    position = result.scalar_one_or_none()
+    if position:
+        position.active_status = False
+        position.current_price = profit
+        await db.commit()
+    return {"status": "success"}
+
+# --- Admin Dashboard ---
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request, token: str | None = None, db: AsyncSession = Depends(get_db)):
+    await verify_admin_token(token)
+    
+    # 1. Fetch Users
+    users_result = await db.execute(select(User))
+    users = users_result.scalars().all()
+    
+    # 2. Fetch Alerts
+    alerts_result = await db.execute(select(Alert).options(selectinload(Alert.user)))
+    alerts = alerts_result.scalars().all()
+    
+    # 3. Fetch Positions
+    pos_result = await db.execute(select(Position))
+    positions = pos_result.scalars().all()
+
+    # 4. Fetch Watchlist
+    watch_result = await db.execute(select(WatchlistItem).options(selectinload(WatchlistItem.user)))
+    watchlist = watch_result.scalars().all()
+
+    # 5. Fetch Accounts
+    acc_result = await db.execute(select(BrokerAccount).options(selectinload(BrokerAccount.user)))
+    accounts = acc_result.scalars().all()
+
+    # 6. Fetch Orders
+    ord_result = await db.execute(select(Order))
+    orders = ord_result.scalars().all()
+    
+    return templates.TemplateResponse("admin.html", {
+        "request": request,
+        "token": token, # Pass token back for JS actions
+        "users": users,
+        "alerts": alerts,
+        "positions": positions,
+        "watchlist": watchlist,
+        "accounts": accounts,
+        "orders": orders,
+        "stats": {
+            "total_users": len(users),
+            "total_alerts": len(alerts),
+            "total_positions": len(positions)
+        }
+    })
+
+@app.delete("/admin/{type}/{id}")
+async def admin_delete(type: str, id: int, token: str | None = None, db: AsyncSession = Depends(get_db)):
+    await verify_admin_token(token)
+    
+    table_map = {
+        "user": User,
+        "alert": Alert,
+        "position": Position,
+        "watchlist": WatchlistItem,
+        "account": BrokerAccount,
+        "order": Order
+    }
+    
+    model = table_map.get(type)
+    if not model:
+        raise HTTPException(status_code=400, detail="Invalid type")
+        
+    await db.execute(delete(model).where(model.id == id))
+    await db.commit()
+    logger.info(f"DB: {type.upper()} DELETE (Admin)")
+    return {"status": "success"}
+
+if __name__ == "__main__":
+    logger.info("Core Service Ready on port 8001")
+    uvicorn.run(app, host="0.0.0.0", port=8001)

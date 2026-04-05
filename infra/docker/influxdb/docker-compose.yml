@@ -1,0 +1,30 @@
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb
+      - influxdb_config:/etc/influxdb
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
+      - DOCKER_INFLUXDB_INIT_ORG=trading_org
+      - DOCKER_INFLUXDB_INIT_BUCKET=temp_setup
+      # The critical Go runtime memory limit (Adjust based on total system RAM)
+      - GOMEMLIMIT=4000MiB
+    deploy:
+      resources:
+        limits:
+          # The hard container limit (Must be higher than GOMEMLIMIT)
+          memory: 6G
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 2048
+
+volumes:
+  influxdb_data:
+  influxdb_config:

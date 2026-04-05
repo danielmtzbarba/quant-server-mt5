@@ -1,0 +1,39 @@
+[project]
+name = "financial-whatsapp-chatbot"
+version = "0.1.0"
+description = "Microservices-based financial WhatsApp chatbot"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "pydantic>=2.6.0",
+    "sqlalchemy>=2.0.25",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.1",
+    "python-dotenv>=1.0.1",
+    "rich>=13.7.0",
+    "httpx>=0.26.0",
+    "langchain>=0.1.0",
+    "langchain-openai>=0.0.2",
+    "langgraph>=0.0.15",
+    "psycopg2-binary>=2.9.11",
+]
+
+[tool.uv.workspace]
+members = [
+    "services/*",
+    "libs/*",
+]
+
+[tool.uv.sources]
+common-logging = { workspace = true }
+common-config = { workspace = true }
+common-events = { workspace = true }
+common-models = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-mock>=3.15.1",
+]

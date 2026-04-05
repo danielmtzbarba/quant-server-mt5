@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tu Portafolio | StonksBot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+    <style>
+        .portfolio-container {
+            max-width: 1000px;
+            margin: 8rem auto 4rem;
+            padding: 0 2rem;
+        }
+
+        .header-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            text-align: left;
+        }
+
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .data-card {
+            background: var(--card-bg);
+            border-radius: 24px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+        }
+
+        .data-card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .list-item:last-child {
+            border-bottom: none;
+        }
+
+        .stock-badge {
+            font-weight: 700;
+            color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+            padding: 0.25rem 0.75rem;
+            border-radius: 8px;
+        }
+
+        .alert-condition {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state {
+            padding: 3rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .search-box {
+            margin-bottom: 4rem;
+            text-align: center;
+        }
+
+        .search-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 9999px;
+            width: 100%;
+            max-width: 500px;
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+        }
+
+        @media (max-width: 768px) {
+            .portfolio-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <nav>
+        <a href="/" class="logo" style="text-decoration: none;">StonksBot</a>
+        <div class="nav-links">
+            <a href="/" style="color: white; text-decoration: none; font-weight: 600;">Regresar</a>
+        </div>
+    </nav>
+
+    <div class="portfolio-container">
+        {% if not user %}
+        <div class="search-box">
+            <h1>Acceso <span class="gradient-text">Restringido</span></h1>
+            <p class="subtitle">Por tu seguridad, el portafolio ahora es privado. Envía <strong>!LOGIN</strong> a nuestro bot de WhatsApp para recibir un enlace de acceso seguro.</p>
+            <div style="margin-top: 2rem;">
+                <!-- Link to WhatsApp logic handled by bot or known channel -->
+                <a href="#" class="cta-button" onclick="alert('Consulta el bot en tu aplicación de WhatsApp'); return false;">Ir a WhatsApp</a>
+            </div>
+        </div>
+        {% else %}
+        <div class="header-flex">
+            <div>
+                <h2 style="font-size: 2.5rem; font-weight: 800;">Hola, <span class="gradient-text">{{ user.name }}</span></h2>
+                <p class="subtitle" style="margin: 0; opacity: 0.8;">Gestión centralizada de tus activos en tiempo real.</p>
+            </div>
+            <div style="text-align: right;">
+                <form action="/portfolio/logout" method="get">
+                    <button type="submit" class="cta-button" style="padding: 0.6rem 1.2rem; font-size: 0.9rem; background: rgba(255,255,255,0.05);">Cerrar Sesión</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Portfolios Overview -->
+        <div class="portfolio-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-bottom: 3rem;">
+            {% if user.has_stock %}
+            <div class="data-card" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(255, 255, 255, 0.03) 100%);">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Capital en Acciones</p>
+                        <h3 style="font-size: 2rem; margin: 0;">${{ "%.2f" | format(user.stock_capital) }}</h3>
+                    </div>
+                    <span style="font-size: 1.5rem;">📈</span>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if user.has_fx %}
+            <div class="data-card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(255, 255, 255, 0.03) 100%);">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Capital FX</p>
+                        <h3 style="font-size: 2rem; margin: 0;">${{ "%.2f" | format(user.fx_capital) }}</h3>
+                    </div>
+                    <span style="font-size: 1.5rem;">💱</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="portfolio-grid">
+            <!-- Watchlist & Stocks -->
+            {% if user.has_stock %}
+            <div class="data-card" style="grid-column: span 1;">
+                <h2 style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 1rem;">📋 Watchlist & Precios</h2>
+                {% if watchlist %}
+                <div style="margin-top: 1rem;">
+                {% for item in watchlist %}
+                <div class="list-item">
+                    <div>
+                        <span class="stock-badge">{{ item.symbol }}</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <p style="margin: 0; font-size: 1.1rem; font-weight: 700;">${{ "%.2f" | format(item.price) if item.price != "N/A" else "N/A" }}</p>
+                        <p style="margin: 0; font-size: 0.75rem; color: var(--text-muted);">Precio Actual</p>
+                    </div>
+                </div>
+                {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">Tu watchlist está vacía.</div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- FX Trades -->
+            {% if user.has_fx %}
+            <div class="data-card" style="grid-column: span 1;">
+                <h2 style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 1rem;">🧭 Operaciones FX</h2>
+                {% if fx_trades %}
+                <div style="margin-top: 1rem;">
+                {% for tid, symbol, action, price, sl, tp, status, profit in fx_trades %}
+                <div class="list-item">
+                    <div>
+                        <span style="font-weight: 700; color: {% if action == 'BUY' %}#10b981{% else %}#ef4444{% endif %};">{{ action }} {{ symbol }}</span>
+                        <p style="margin: 0; font-size: 0.75rem; color: var(--text-muted);">Entrada: ${{ "%.5f" | format(price) }}</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 800; background: {% if status == 'OPEN' %}#10b981{% else %}#374151{% endif %}; color: white; margin-bottom: 0.2rem; display: inline-block;">{{ status }}</span>
+                        <p style="margin: 0; font-weight: 700; color: {% if profit >= 0 %}#10b981{% else %}#ef4444{% endif %};">${{ "%.2f" | format(profit) }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">No hay operaciones FX registradas.</div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Alerts (Shared/Side) -->
+            <div class="data-card" style="grid-column: span 2;">
+                <h2 style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 1rem;">🔔 Alertas Activas</h2>
+                {% if alerts %}
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-top: 1.5rem;">
+                {% for aid, sid, price, cond in alerts %}
+                <div style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <span class="stock-badge">{{ sid }}</span>
+                        <span style="font-size: 0.8rem;">{{ '📈' if cond == 'ABOVE' else '📉' }}</span>
+                    </div>
+                    <p style="margin: 0.5rem 0 0; font-size: 0.9rem;">{{ 'Si sube de' if cond == 'ABOVE' else 'Si baja de' }}</p>
+                    <p style="margin: 0; font-weight: 700; font-size: 1.2rem;">${{ "%.2f" | format(price) }}</p>
+                </div>
+                {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">No hay alertas configuradas.</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <footer style="margin-top: 10rem;">
+        <div class="footer-text">
+            &copy; 2026 StonksBot. Dashboard Privado.
+        </div>
+    </footer>
+</body>
+
+</html>
