@@ -165,8 +165,8 @@ class TradingService:
     async def check_signals(self, symbol: str):
         """Unified strategy evaluation and signal broadcasting."""
         try:
-            from trade_db.indicators import PriceActionIndicators as Indicators
-            from trade_db.strategy import PriceActionStrategy as Strategy
+            from utils.indicators import PriceActionIndicators as Indicators
+            from utils.strategy import PriceActionStrategy as Strategy
 
             # 1. Fetch resampled data (e.g. 15m)
             df = self.market_data.get_resampled_candles(

@@ -4,6 +4,7 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY libs/ ./libs/
+COPY templates/ ./templates/
 COPY services/execution_service/ ./services/execution_service/
 RUN uv sync --frozen --no-dev
 
@@ -13,6 +14,7 @@ WORKDIR /app
 # Copy the synchronized environment and code
 COPY --from=builder /app/.venv /app/.venv
 COPY libs/ /app/libs/
+COPY templates/ /app/templates/
 COPY services/execution_service/app /app/services/execution_service/app
 
 # Ensure 'uv' uses the pre-built environment
