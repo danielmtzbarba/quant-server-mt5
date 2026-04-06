@@ -167,12 +167,18 @@ class TradingService:
         try:
             from utils.indicators import PriceActionIndicators as Indicators
             from utils.strategy import PriceActionStrategy as Strategy
+            from utils.trading_utils import filter_last_trading_days
 
-            # 1. Fetch resampled data (e.g. 15m)
-            df = self.market_data.get_resampled_candles(
-                symbol, interval="15m", start="-3d"
+            # 1. Over-fetch (e.g. 7 days) to ensure we find at least 3 trading sessions
+            # This guarantees context for indicators even on a Monday morning.
+            df_raw = self.market_data.get_resampled_candles(
+                symbol, interval="15m", start="-7d"
             )
-            if df.empty:
+
+            # 2. Slice to exactly the last 3 trading days
+            df = filter_last_trading_days(df_raw, n_days=3)
+
+            if df is None or df.empty:
                 logger.debug(f"No resampled data for {symbol} to check signals.")
                 return
 

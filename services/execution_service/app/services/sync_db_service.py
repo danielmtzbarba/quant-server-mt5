@@ -105,11 +105,17 @@ class SyncDBService:
 
     def evaluate_strategy(self, symbol: str, days: int = 3):
         try:
+            from utils.trading_utils import filter_last_trading_days
+
             with MarketDataAPI() as api:
-                df = api.get_resampled_candles(
-                    symbol, interval="15m", start=f"-{days}d"
-                )
-                if df.empty:
+                # 1. Over-fetch (e.g. 7 days) to ensure we find at least 3 trading sessions
+                # This guarantees data even on a Monday morning.
+                df_raw = api.get_resampled_candles(symbol, interval="15m", start="-7d")
+
+                # 2. Slice to exactly the last N trading days
+                df = filter_last_trading_days(df_raw, n_days=days)
+
+                if df is None or df.empty:
                     return None, {"action": "HOLD", "signal_code": 0}
 
                 df = Indicators.add_dynamic_support_resistance(df, window=50)
