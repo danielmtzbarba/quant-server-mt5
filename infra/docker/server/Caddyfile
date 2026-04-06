@@ -4,28 +4,27 @@
 }
 
 quant.danielmtzbarba.com {
-    # 1. THE ONLY PUBLIC DOOR: WhatsApp Webhooks (Meta API)
-    # Only requests specifically starting with /webhook reach the service.
+    # 1. THE WEBHOOK DOOR: Pure Handshake (Meta API)
+    # Match both /webhook and /webhook/ to prevent 307 redirects
     handle /webhook* {
         reverse_proxy messaging-service:8003
+        
+        # STRIP ALL BROWSER HEADERS (Meta's bot requires raw text/no noise)
+        header {
+            -Permissions-Policy
+            -Strict-Transport-Security
+            -X-Content-Type-Options
+            -X-Frame-Options
+        }
     }
 
-    # 2. THE CHASM: Drop everything else (Admin, Dashboard, Send, Static)
-    # Any attempt to hit /admin or /dashboard via the public domain is aborted.
+    # 2. THE CHASM: Drop everything else
     handle {
         abort
     }
 
-    # Enable logging for auditing blocked traffic
+    # Enable logging for auditing traffic flows
     log {
         output file /data/access.log
-    }
-
-    # Security headers
-    header {
-        Permissions-Policy "interest-cohort=()"
-        Strict-Transport-Security "max-age=31536000;"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
     }
 }
