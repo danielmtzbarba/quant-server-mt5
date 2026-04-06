@@ -1,0 +1,23 @@
+{
+    # Global options
+    email your-email@example.com
+}
+
+quant.danielmtzbarba.com {
+    # Reverse proxy to the Messaging Service (internal port 8003)
+    reverse_proxy messaging-service:8003
+
+    # Enable logging for debugging webhook handshakes
+    log {
+        output file /data/access.log
+    }
+
+    # Security headers
+    header {
+        # Disable FLoC, enable HSTS, etc.
+        Permissions-Policy "interest-cohort=()"
+        Strict-Transport-Security "max-age=31536000;"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+    }
+}

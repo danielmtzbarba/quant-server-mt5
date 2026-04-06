@@ -57,7 +57,32 @@ resource "google_compute_firewall" "allow_ssh" {
   target_tags   = ["quant-server"]
 }
 
-# 3. Firewall: Restricted ports (8001-8003)
+# 3. Firewall: Allow HTTP/HTTPS for Webhooks (Caddy)
+resource "google_compute_firewall" "allow_web" {
+  name    = "allow-web-traffic"
+  network = "default"
+
+  depends_on = [google_project_service.apis]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80", "443"]
+  }
+
+  # Open to public for Let's Encrypt verification + Meta Webhooks
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["quant-server"]
+}
+
+# 4. Reserve Static External IP (Zero-Touch Identity)
+resource "google_compute_address" "static_ip" {
+  name       = "quant-server-static-ip"
+  project    = var.project_id
+  region     = var.region
+  depends_on = [google_project_service.apis]
+}
+
+# 5. Firewall: Restricted ports (8001-8002)
 resource "google_compute_firewall" "restricted_access" {
   name    = "allow-restricted-access"
   network = "default"
@@ -66,22 +91,17 @@ resource "google_compute_firewall" "restricted_access" {
 
   allow {
     protocol = "tcp"
-    ports    = ["8001", "8002", "8003"]
+    ports    = ["8001", "8002"]
   }
 
-  # Restrict to: My IP + Meta Webhook Ranges
+  # Restrict to: My IP
   source_ranges = [
-    "${chomp(data.http.my_ip.response_body)}/32",
-    "31.13.24.0/21", "45.64.40.0/22", "66.220.144.0/20",
-    "69.63.176.0/20", "69.171.224.0/19", "74.123.0.0/16",
-    "103.4.96.0/22", "129.134.0.0/17", "157.240.0.0/16",
-    "173.252.64.0/18", "179.60.192.0/22", "185.60.216.0/22",
-    "204.15.20.0/22"
+    "${chomp(data.http.my_ip.response_body)}/32"
   ]
   target_tags = ["quant-server"]
 }
 
-# 3. Secret Manager: Store sensitive tokens
+# 6. Secret Manager: Store sensitive tokens
 resource "google_secret_manager_secret" "openai_key" {
   secret_id  = "OPENAI_API_KEY"
   depends_on = [google_project_service.apis]
@@ -122,7 +142,7 @@ resource "google_secret_manager_secret" "tailscale_auth_key" {
   }
 }
 
-# 4. GCE Instance (e2-micro)
+# 5. GCE Instance (e2-micro)
 resource "google_compute_instance" "quant_vm" {
   name         = var.instance_name
   machine_type = var.machine_type
@@ -141,7 +161,7 @@ resource "google_compute_instance" "quant_vm" {
   network_interface {
     network = "default"
     access_config {
-      # Static External IP or Ephemeral
+      nat_ip = google_compute_address.static_ip.address
     }
   }
 
