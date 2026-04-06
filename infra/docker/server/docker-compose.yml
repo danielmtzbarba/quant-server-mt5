@@ -48,7 +48,7 @@ services:
           memory: 128m
 
   messaging-service:
-    image: ghcr.io/danielmtzbarba/messaging_service:latest
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/messaging_service:latest
     build:
       context: ../../../
       dockerfile: services/messaging_service/Dockerfile
