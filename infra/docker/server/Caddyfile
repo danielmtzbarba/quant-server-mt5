@@ -3,11 +3,11 @@
     email danielmtz.dev@gmail.com
 }
 
-quant.danielmtzbarba.com {
+:80, :443 {
     # 1. THE WEBHOOK DOOR: Pure Handshake (Meta API)
     # Match both /webhook and /webhook/ to prevent 307 redirects
     handle /webhook* {
-        reverse_proxy messaging-service:8003
+        reverse_proxy messaging_service:8003
         
         # STRIP ALL BROWSER HEADERS (Meta's bot requires raw text/no noise)
         header {
@@ -21,10 +21,5 @@ quant.danielmtzbarba.com {
     # 2. THE CHASM: Drop everything else
     handle {
         abort
-    }
-
-    # Enable logging for auditing traffic flows
-    log {
-        output file /data/access.log
     }
 }

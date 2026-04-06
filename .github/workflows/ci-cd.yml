@@ -221,7 +221,7 @@ jobs:
           # 4. Perform Deploy
           git config --global --add safe.directory /app
           cd /app && git pull
-          export GITHUB_REPOSITORY_OWNER=danielmtzbarba
+          export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
           docker compose -f infra/docker/server/docker-compose.yml pull
           docker compose -f infra/docker/server/docker-compose.yml up -d
           # Force Caddy to restart to clear out failed certificate identities
