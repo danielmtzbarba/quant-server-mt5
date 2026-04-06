@@ -158,7 +158,12 @@ jobs:
         run: terraform fmt -check
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -var="project_id=${{ vars.GCP_PROJECT_ID }}" -var="github_repo_url=https://github.com/${{ github.repository }}" -var="ssh_public_key=${{ secrets.GCP_SSH_PUBLIC_KEY }}"
+        run: |
+          terraform apply -auto-approve \
+            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
+            -var="github_repo_url=https://github.com/${{ github.repository }}" \
+            -var="ssh_public_key=${{ secrets.GCP_SSH_PUBLIC_KEY }}" \
+            -var="admin_ip=${{ secrets.ADMIN_IP }}"
 
       - name: Get VM Metadata
         id: vm_meta

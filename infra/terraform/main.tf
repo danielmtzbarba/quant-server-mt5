@@ -35,10 +35,7 @@ resource "google_project_service" "apis" {
   disable_on_destroy = false
 }
 
-# 2. Fetch current public IP for whitelisting
-data "http" "my_ip" {
-  url = "http://checkip.amazonaws.com"
-}
+# Automating API Activation (Self-Healing)
 
 # 2. Firewall: Allow SSH via IAP (Zero-Exposure)
 resource "google_compute_firewall" "allow_ssh" {
@@ -82,9 +79,9 @@ resource "google_compute_address" "static_ip" {
   depends_on = [google_project_service.apis]
 }
 
-# 5. Firewall: Restricted ports (8001-8002)
-resource "google_compute_firewall" "restricted_access" {
-  name    = "allow-restricted-access"
+# 5. Firewall: Restricted ports (8001-8002) - RESCUED ID
+resource "google_compute_firewall" "allow_admin_vault" {
+  name    = "allow-admin-vault"
   network = "default"
 
   depends_on = [google_project_service.apis]
@@ -94,11 +91,9 @@ resource "google_compute_firewall" "restricted_access" {
     ports    = ["8001", "8002"]
   }
 
-  # Restrict to: My IP
-  source_ranges = [
-    "${chomp(data.http.my_ip.response_body)}/32"
-  ]
-  target_tags = ["quant-server"]
+  # Whitelist the user-specified Admin IP (Prevents GHA Tug-of-War)
+  source_ranges = ["${var.admin_ip}/32"]
+  target_tags   = ["quant-server"]
 }
 
 # 6. Secret Manager: Store sensitive tokens
