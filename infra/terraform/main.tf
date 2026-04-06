@@ -228,7 +228,11 @@ resource "google_compute_instance" "quant_vm" {
     export GITHUB_REPOSITORY_OWNER=danielmtzbarba
     docker compose -f infra/docker/server/docker-compose.yml pull
     
-    # 11. Success marker
+    # 11. Hand over ownership to the deployer user
+    chown -R danielmtz:danielmtz /app
+    usermod -aG docker danielmtz
+    
+    # 12. Success marker
     echo "GCP VM Ready. Setup Tailscale and copy your .env files to /app/infra/envs/"
   EOT
 

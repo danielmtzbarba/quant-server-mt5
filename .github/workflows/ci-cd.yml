@@ -175,6 +175,7 @@ jobs:
           [ -n "$MESSAGING_ENV" ] && echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env || echo "Skipping messaging.env (empty)"
           
           # 3. Perform Deploy
+          git config --global --add safe.directory /app
           cd /app && git pull
           export GITHUB_REPOSITORY_OWNER=danielmtzbarba
           docker compose -f infra/docker/server/docker-compose.yml pull
