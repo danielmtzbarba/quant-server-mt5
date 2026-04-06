@@ -5,9 +5,12 @@
 
 :80, :443 {
     # 1. THE WEBHOOK DOOR: Pure Handshake (Meta API)
-    # Match both /webhook and /api/webhook to prevent mismatches
-    handle /webhook* /api/webhook* {
-        # Strip /api prefix if provided
+    # Match both /webhook and /api/webhook using a named matcher
+    @webhooks {
+        path /webhook* /api/webhook*
+    }
+    handle @webhooks {
+        # Strip /api prefix if provided (does nothing if prefix doesn't match)
         uri strip_prefix /api
         reverse_proxy messaging_service:8003
         
