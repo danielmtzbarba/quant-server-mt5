@@ -1,6 +1,6 @@
 {
-    # Global options
-    email your-email@example.com
+    # Highly recommended: provide your email for SSL expiration alerts
+    email danielmtz.dev@gmail.com
 }
 
 quant.danielmtzbarba.com {

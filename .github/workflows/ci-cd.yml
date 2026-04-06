@@ -219,6 +219,8 @@ jobs:
           export GITHUB_REPOSITORY_OWNER=danielmtzbarba
           docker compose -f infra/docker/server/docker-compose.yml pull
           docker compose -f infra/docker/server/docker-compose.yml up -d
+          # Force Caddy to reload its Caddyfile from the VM disk
+          docker compose -f infra/docker/server/docker-compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile
           
           # 4. Success Verification (Health Check)
           echo "Running health checks..."
