@@ -5,8 +5,10 @@
 
 :80, :443 {
     # 1. THE WEBHOOK DOOR: Pure Handshake (Meta API)
-    # Match both /webhook and /webhook/ to prevent 307 redirects
-    handle /webhook* {
+    # Match both /webhook and /api/webhook to prevent mismatches
+    handle /webhook* /api/webhook* {
+        # Strip /api prefix if provided
+        uri strip_prefix /api
         reverse_proxy messaging_service:8003
         
         # STRIP ALL BROWSER HEADERS (Meta's bot requires raw text/no noise)
