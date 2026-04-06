@@ -48,11 +48,43 @@ jobs:
           EXECUTION_SERVICE_URL: http://localhost:8002
 
   # ---------------------------------------------------------------------------
-  # 2. Build & Push to GHCR (Depends on QA)
+  # 2. Build Shared Base Image (Zero-Redundancy Layer)
+  # ---------------------------------------------------------------------------
+  build-base:
+    name: Build Base Image
+    needs: qa
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Base
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./infra/docker/base.Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/quant-base:latest
+          cache-from: type=gha,scope=base
+          cache-to: type=gha,mode=max,scope=base
+
+  # ---------------------------------------------------------------------------
+  # 3. Build & Push Services (Depends on Base & QA)
   # ---------------------------------------------------------------------------
   build-and-push:
     name: Build & Push
-    needs: qa
+    needs: [qa, build-base]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     strategy:
@@ -87,8 +119,8 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
             ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
   # ---------------------------------------------------------------------------
   # 3. Terraform (Infrastructure Management)
@@ -135,11 +167,11 @@ jobs:
       vm_zone: ${{ steps.vm_meta.outputs.zone }}
 
   # ---------------------------------------------------------------------------
-  # 4. Zero-Exposure Deployment (Depends on Build & Terraform)
+  # 5. Zero-Exposure Deployment (Depends on Build & Terraform)
   # ---------------------------------------------------------------------------
   deploy:
     name: Continuous Deployment
-    needs: [build-and-push, terraform]
+    needs: [build-and-push, build-base, terraform]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
@@ -170,13 +202,13 @@ jobs:
           sudo mkdir -p /app
           sudo chown -R danielmtz:danielmtz /app
           
-          # 3. Inject Secrets Defensively
+          # 3. Inject Secrets Defensively (Always create files to satisfy Docker Compose)
           echo "Injecting environment files..."
           mkdir -p /app/infra/envs
-          [ -n "$SHARED_ENV" ] && echo "$SHARED_ENV" > /app/infra/envs/shared.env || echo "Skipping shared.env (empty)"
-          [ -n "$CORE_ENV" ] && echo "$CORE_ENV" > /app/infra/envs/core.env || echo "Skipping core.env (empty)"
-          [ -n "$EXECUTION_ENV" ] && echo "$EXECUTION_ENV" > /app/infra/envs/execution.env || echo "Skipping execution.env (empty)"
-          [ -n "$MESSAGING_ENV" ] && echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env || echo "Skipping messaging.env (empty)"
+          echo "$SHARED_ENV" > /app/infra/envs/shared.env
+          echo "$CORE_ENV" > /app/infra/envs/core.env
+          echo "$EXECUTION_ENV" > /app/infra/envs/execution.env
+          echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env
           
           # 4. Perform Deploy
           git config --global --add safe.directory /app
