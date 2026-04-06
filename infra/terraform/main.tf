@@ -73,6 +73,13 @@ resource "google_secret_manager_secret" "admin_token" {
   }
 }
 
+resource "google_secret_manager_secret" "tailscale_auth_key" {
+  secret_id = "TAILSCALE_AUTH_KEY"
+  replication {
+    auto {}
+  }
+}
+
 # 4. GCE Instance (e2-micro)
 resource "google_compute_instance" "quant_vm" {
   name         = var.instance_name
@@ -97,10 +104,30 @@ resource "google_compute_instance" "quant_vm" {
   # Startup script to pull the app and run it
   metadata_startup_script = <<-EOT
     #!/bin/bash
-    sudo apt-get update
-    sudo apt-get install -y docker.io git docker-compose-plugin curl
+    set -e
 
-    # 1. Enable 2GB Swap (Crucial for e2-micro)
+    # 1. Wait for apt lock (Debian/Ubuntu boot updates)
+    echo "Waiting for apt lock..."
+    while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+       sleep 5
+    done
+    
+    # 2. Prerequisites
+    sudo apt-get update
+    sudo apt-get install -y ca-certificates curl gnupg lsb-release git
+
+    # 3. Add Docker GPG Key and Repo
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+      $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    # 4. Install Docker Engine and Plugins
+    sudo apt-get update
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    
+    # 5. Enable 2GB Swap (Crucial for e2-micro)
     if [ ! -f /swapfile ]; then
         sudo fallocate -l 2G /swapfile
         sudo chmod 600 /swapfile
@@ -108,26 +135,33 @@ resource "google_compute_instance" "quant_vm" {
         sudo swapon /swapfile
         echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
     fi
-
-    # 2. Start Docker
+    
+    # 6. Start Docker
     sudo systemctl start docker
     sudo systemctl enable docker
-
-    # 2. Install Tailscale (Networking)
+    
+    # 7. Install Tailscale (Networking)
     curl -fsSL https://tailscale.com/install.sh | sh
-    # Note: User must still run 'sudo tailscale up' manually to authenticate
-
-    # 3. Clone Repository (for infra config)
+    
+    # 8. Authenticate Tailscale Automatically
+    echo "Wait for gcloud to be ready"
+    TS_AUTH_KEY=$(gcloud secrets versions access latest --secret="TAILSCALE_AUTH_KEY" || echo "")
+    if [ -n "$TS_AUTH_KEY" ]; then
+        sudo tailscale up --authkey="$TS_AUTH_KEY" --hostname="mt5-quant-server-vm" --accept-routes
+    else
+        echo "Tailscale Auth Key not found or inaccessible. Manual login required."
+    fi
+    
+    # 9. Clone Repository (for infra config)
     mkdir -p /app
     git clone ${var.github_repo_url} /app
     cd /app
-
-    # 4. Pull pre-built images from GHCR
-    # Ensuring the lowest startup time for the e2-micro
+    
+    # 9. Pull pre-built images from GHCR
     export GITHUB_REPOSITORY_OWNER=danielmtzbarba
     docker compose -f infra/docker/server/docker-compose.yml pull
-
-    # 5. Success marker
+    
+    # 10. Success marker
     echo "GCP VM Ready. Setup Tailscale and copy your .env files to /app/infra/envs/"
   EOT
 
@@ -174,6 +208,13 @@ resource "google_service_account_iam_member" "wif_binding" {
   service_account_id = "projects/${var.project_id}/serviceAccounts/github-actions-deployer@${var.project_id}.iam.gserviceaccount.com"
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_pool.name}/attribute.repository/danielmtzbarba/quant-server-mt5"
+}
+
+# Allow the VM to read secrets (required for Tailscale Auto-Join)
+resource "google_project_iam_member" "vm_secret_accessor" {
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:861553998922-compute@developer.gserviceaccount.com"
 }
 
 output "wif_provider_name" {

@@ -57,18 +57,57 @@ jobs:
 
       - name: Deploy via SSH
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          SHARED_ENV: ${{ secrets.SHARED_ENV }}
+          CORE_ENV: ${{ secrets.CORE_ENV }}
+          EXECUTION_ENV: ${{ secrets.EXECUTION_ENV }}
+          MESSAGING_ENV: ${{ secrets.MESSAGING_ENV }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ steps.vm_ip.outputs.ip }}
           username: danielmtz
           key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          envs: SHARED_ENV,CORE_ENV,EXECUTION_ENV,MESSAGING_ENV
           script: |
-            # --- Wait for Startup Script ---
-            echo "Waiting for Docker and Git to be installed by startup script..."
-            timeout 300s bash -c 'until command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; do sleep 10; done'
+            # --- Wait for Startup Script Readiness ---
+            echo "Waiting for Docker and Git to be fully installed by startup script..."
+            timeout 180s bash -c 'until command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; do echo "Checking tools..." && sleep 10; done'
+            
+            # --- Inject Environment Secrets ---
+            echo "Injecting service environment files..."
+            mkdir -p /app/infra/envs
+            echo "$SHARED_ENV" > /app/infra/envs/shared.env
+            echo "$CORE_ENV" > /app/infra/envs/core.env
+            echo "$EXECUTION_ENV" > /app/infra/envs/execution.env
+            echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env
             
             # --- Perform Deployment ---
             cd /app && git pull
             export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
             docker compose -f infra/docker/server/docker-compose.yml pull
             docker compose -f infra/docker/server/docker-compose.yml up -d
+            
+            # --- Post-Deployment Health Check ---
+            echo "Running health checks for services (8001, 8002, 8003)..."
+            max_retries=12
+            for i in $(seq 1 $max_retries); do
+              core_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/ || echo "000")
+              exec_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8002/ || echo "000")
+              msg_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8003/ || echo "000")
+              
+              if [[ "$core_ok" != "000" && "$exec_ok" != "000" && "$msg_ok" != "000" ]]; then
+                echo "All services are UP and responding!"
+                echo "--------------------------------------------------------"
+                echo "Tailscale IP for access: $(tailscale ip -4)"
+                echo "Admin Dashboard: http://$(tailscale ip -4):8001/admin"
+                echo "--------------------------------------------------------"
+                exit 0
+              fi
+              
+              echo "Waiting for services... (Attempt $i/$max_retries)"
+              sleep 5
+            done
+            
+            echo "ERROR: Health check failed! Some services did not respond."
+            docker compose -f infra/docker/server/docker-compose.yml ps
+            exit 1
