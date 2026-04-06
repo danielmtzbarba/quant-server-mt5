@@ -7,9 +7,9 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
-    # Default for development if not set, but should be set in .env
-    # Use environment variables for Tailscale/Production connectivity
-    DATABASE_URL = os.getenv("DATABASE_URL")
+    # Use a dummy SQLite in-memory DB as safety default when variable is missing
+    # This prevents the app from crashing during module import/tests
+    DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 engine = create_async_engine(
     DATABASE_URL,
