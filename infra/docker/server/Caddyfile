@@ -4,17 +4,25 @@
 }
 
 quant.danielmtzbarba.com {
-    # Reverse proxy to the Messaging Service (internal port 8003)
-    reverse_proxy messaging-service:8003
+    # 1. THE ONLY PUBLIC DOOR: WhatsApp Webhooks (Meta API)
+    # Only requests specifically starting with /webhook reach the service.
+    handle /webhook* {
+        reverse_proxy messaging-service:8003
+    }
 
-    # Enable logging for debugging webhook handshakes
+    # 2. THE CHASM: Drop everything else (Admin, Dashboard, Send, Static)
+    # Any attempt to hit /admin or /dashboard via the public domain is aborted.
+    handle {
+        abort
+    }
+
+    # Enable logging for auditing blocked traffic
     log {
         output file /data/access.log
     }
 
     # Security headers
     header {
-        # Disable FLoC, enable HSTS, etc.
         Permissions-Policy "interest-cohort=()"
         Strict-Transport-Security "max-age=31536000;"
         X-Content-Type-Options "nosniff"
