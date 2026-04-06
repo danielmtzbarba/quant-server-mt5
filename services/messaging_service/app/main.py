@@ -40,7 +40,7 @@ async def verify_challenge(request: Request):
     challenge = request.query_params.get("hub.challenge")
     if token == wa.auth_token and challenge is not None:
         return PlainTextResponse(challenge)
-    
+
     # Safe Diagnosis: Do NOT log the token itself for security, just the failure
     logger.warning(f"[WHATSAPP] Token Mismatch! Expected auth_token, got {token}")
     return PlainTextResponse("Forbidden", status_code=403)
