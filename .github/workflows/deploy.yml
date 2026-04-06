@@ -73,13 +73,13 @@ jobs:
             echo "Waiting for Docker and Git to be fully installed by startup script..."
             timeout 180s bash -c 'until command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; do echo "Checking tools..." && sleep 10; done'
             
-            # --- Inject Environment Secrets ---
+            # --- Inject Environment Secrets (Defensive) ---
             echo "Injecting service environment files..."
             mkdir -p /app/infra/envs
-            echo "$SHARED_ENV" > /app/infra/envs/shared.env
-            echo "$CORE_ENV" > /app/infra/envs/core.env
-            echo "$EXECUTION_ENV" > /app/infra/envs/execution.env
-            echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env
+            [ -n "$SHARED_ENV" ] && echo "$SHARED_ENV" > /app/infra/envs/shared.env || echo "Skipping shared.env (empty)"
+            [ -n "$CORE_ENV" ] && echo "$CORE_ENV" > /app/infra/envs/core.env || echo "Skipping core.env (empty)"
+            [ -n "$EXECUTION_ENV" ] && echo "$EXECUTION_ENV" > /app/infra/envs/execution.env || echo "Skipping execution.env (empty)"
+            [ -n "$MESSAGING_ENV" ] && echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env || echo "Skipping messaging.env (empty)"
             
             # --- Perform Deployment ---
             cd /app && git pull
@@ -108,6 +108,9 @@ jobs:
               sleep 5
             done
             
-            echo "ERROR: Health check failed! Some services did not respond."
+            echo "--------------------------------------------------------"
+            echo "ERROR: Health check failed! Printing diagnostics..."
+            echo "--------------------------------------------------------"
             docker compose -f infra/docker/server/docker-compose.yml ps
+            docker compose -f infra/docker/server/docker-compose.yml logs --tail=20
             exit 1

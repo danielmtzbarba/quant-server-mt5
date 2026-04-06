@@ -1,4 +1,4 @@
-terraform {
+ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -17,7 +17,25 @@ provider "google" {
   zone    = var.zone
 }
 
-# 1. Fetch current public IP for whitelisting
+# 1. Automated API Activation (Self-Healing)
+locals {
+  services = [
+    "compute.googleapis.com",
+    "secretmanager.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
+    "iam.googleapis.com"
+  ]
+}
+
+resource "google_project_service" "apis" {
+  for_each = toset(local.services)
+  project  = var.project_id
+  service  = each.key
+  
+  disable_on_destroy = false
+}
+
+# 2. Fetch current public IP for whitelisting
 data "http" "my_ip" {
   url = "http://checkip.amazonaws.com"
 }
@@ -26,6 +44,8 @@ data "http" "my_ip" {
 resource "google_compute_firewall" "restricted_access" {
   name    = "allow-restricted-access"
   network = "default"
+  
+  depends_on = [google_project_service.apis]
 
   allow {
     protocol = "tcp"
@@ -47,6 +67,7 @@ resource "google_compute_firewall" "restricted_access" {
 # 3. Secret Manager: Store sensitive tokens
 resource "google_secret_manager_secret" "openai_key" {
   secret_id = "OPENAI_API_KEY"
+  depends_on = [google_project_service.apis]
   replication {
     auto {}
   }
@@ -54,6 +75,7 @@ resource "google_secret_manager_secret" "openai_key" {
 
 resource "google_secret_manager_secret" "whatsapp_api_token" {
   secret_id = "WHATSAPP_API_TOKEN"
+  depends_on = [google_project_service.apis]
   replication {
     auto {}
   }
@@ -61,6 +83,7 @@ resource "google_secret_manager_secret" "whatsapp_api_token" {
 
 resource "google_secret_manager_secret" "whatsapp_auth_token" {
   secret_id = "WHATSAPP_AUTH_TOKEN"
+  depends_on = [google_project_service.apis]
   replication {
     auto {}
   }
@@ -68,6 +91,7 @@ resource "google_secret_manager_secret" "whatsapp_auth_token" {
 
 resource "google_secret_manager_secret" "admin_token" {
   secret_id = "ADMIN_TOKEN"
+  depends_on = [google_project_service.apis]
   replication {
     auto {}
   }
@@ -75,17 +99,20 @@ resource "google_secret_manager_secret" "admin_token" {
 
 resource "google_secret_manager_secret" "tailscale_auth_key" {
   secret_id = "TAILSCALE_AUTH_KEY"
+  depends_on = [google_project_service.apis]
   replication {
     auto {}
   }
 }
 
-# 4. GCE Instance (e2-micro)
+  # 4. GCE Instance (e2-micro)
 resource "google_compute_instance" "quant_vm" {
   name         = var.instance_name
   machine_type = var.machine_type
   zone         = var.zone
   tags         = ["quant-server"]
+
+  depends_on = [google_project_service.apis]
 
   boot_disk {
     initialize_params {
@@ -112,20 +139,28 @@ resource "google_compute_instance" "quant_vm" {
        sleep 5
     done
     
-    # 2. Prerequisites
-    sudo apt-get update
-    sudo apt-get install -y ca-certificates curl gnupg lsb-release git
+    # 2. Check if tools are already installed (Idempotency)
+    if ! command -v git &> /dev/null || ! command -v docker &> /dev/null || ! docker compose version &> /dev/null; then
+        echo "Installing Prerequisites..."
+        sudo apt-get update
+        sudo apt-get install -y ca-certificates curl gnupg lsb-release git
 
-    # 3. Add Docker GPG Key and Repo
-    sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-      $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        # 3. Add Docker GPG Key and Repo
+        sudo mkdir -p /etc/apt/keyrings
+        if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
+            curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        fi
+        
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+          $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-    # 4. Install Docker Engine and Plugins
-    sudo apt-get update
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+        # 4. Install Docker Engine and Plugins
+        sudo apt-get update
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    else
+        echo "Docker and Git already installed. Skipping..."
+    fi
     
     # 5. Enable 2GB Swap (Crucial for e2-micro)
     if [ ! -f /swapfile ]; then
@@ -134,6 +169,8 @@ resource "google_compute_instance" "quant_vm" {
         sudo mkswap /swapfile
         sudo swapon /swapfile
         echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+    else
+        echo "Swapfile exists. Skipping..."
     fi
     
     # 6. Start Docker
@@ -141,27 +178,40 @@ resource "google_compute_instance" "quant_vm" {
     sudo systemctl enable docker
     
     # 7. Install Tailscale (Networking)
-    curl -fsSL https://tailscale.com/install.sh | sh
+    if ! command -v tailscale &> /dev/null; then
+        curl -fsSL https://tailscale.com/install.sh | sh
+    else
+        echo "Tailscale already installed. Skipping..."
+    fi
     
     # 8. Authenticate Tailscale Automatically
     echo "Wait for gcloud to be ready"
     TS_AUTH_KEY=$(gcloud secrets versions access latest --secret="TAILSCALE_AUTH_KEY" || echo "")
     if [ -n "$TS_AUTH_KEY" ]; then
-        sudo tailscale up --authkey="$TS_AUTH_KEY" --hostname="mt5-quant-server-vm" --accept-routes
+        if sudo tailscale status | grep -q "Logged out"; then
+             sudo tailscale up --authkey="$TS_AUTH_KEY" --hostname="mt5-quant-server-vm" --accept-routes
+        else
+             echo "Tailscale already active. Skipping login..."
+        fi
     else
         echo "Tailscale Auth Key not found or inaccessible. Manual login required."
     fi
     
     # 9. Clone Repository (for infra config)
-    mkdir -p /app
-    git clone ${var.github_repo_url} /app
-    cd /app
+    if [ ! -d /app ]; then
+        mkdir -p /app
+        git clone ${var.github_repo_url} /app
+    else
+        echo "Directory /app exists. Pulling latest..."
+        cd /app && git pull
+    fi
     
-    # 9. Pull pre-built images from GHCR
+    # 10. Pull pre-built images from GHCR
+    cd /app
     export GITHUB_REPOSITORY_OWNER=danielmtzbarba
     docker compose -f infra/docker/server/docker-compose.yml pull
     
-    # 10. Success marker
+    # 11. Success marker
     echo "GCP VM Ready. Setup Tailscale and copy your .env files to /app/infra/envs/"
   EOT
 
