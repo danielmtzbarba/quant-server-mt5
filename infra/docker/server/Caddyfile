@@ -3,6 +3,11 @@
     email danielmtz.dev@gmail.com
 }
 
+# STEALTH: Drop any requests that don't match our domain (bots, scanners, direct IP hits)
+:80, :443 {
+    abort
+}
+
 quant.danielmtzbarba.com {
     # Reverse proxy to the Messaging Service (internal port 8003)
     reverse_proxy messaging-service:8003
