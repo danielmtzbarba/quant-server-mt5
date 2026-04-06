@@ -11,17 +11,13 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Initializing Messaging Service...")
-    # Definitive runtime silence for Uvicorn logs
-    for name in ["uvicorn", "uvicorn.access", "uvicorn.error", "uvicorn.asgi"]:
-        uv_logger = logging.getLogger(name)
-        uv_logger.handlers = []
-        uv_logger.propagate = False
-        uv_logger.setLevel(logging.WARNING)
+    logger.info("Initializing Messaging Service (DEBUG MODE)...")
+    # LIFTING THE MUZZLE: Allow uvicorn to report everything
     yield
     logger.info("Shutting down Messaging Service...")
 
 
+# Increase detail for the main logger as well
 logger = setup_logging("messaging-service", tag="MESSAGING", color="blue")
 
 app = FastAPI(title="Messaging Service", lifespan=lifespan, redirect_slashes=False)
@@ -80,5 +76,5 @@ async def send_message_api(request: Request):
 
 
 if __name__ == "__main__":
-    logger.info("Messaging Service Ready on port 8003")
-    uvicorn.run(app, host="0.0.0.0", port=8003)
+    logger.info("Messaging Service Ready (MAX VERBOSITY) on port 8003")
+    uvicorn.run(app, host="0.0.0.0", port=8003, log_level="debug")
