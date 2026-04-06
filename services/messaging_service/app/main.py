@@ -36,13 +36,19 @@ async def health_check():
 @app.get("/webhook")
 async def verify_challenge(request: Request):
     logger.info("GET /webhook (Verification)")
+    # Safe Identity: Log the first 3 chars of expected token to verify sync
+    expected_preview = (wa.auth_token[:3] + "...") if wa.auth_token else "NONE"
+    logger.debug(f"[WHATSAPP] Expected Token Identity: {expected_preview}")
+
     token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
     if token == wa.auth_token and challenge is not None:
         return PlainTextResponse(challenge)
 
     # Safe Diagnosis: Do NOT log the token itself for security, just the failure
-    logger.warning(f"[WHATSAPP] Token Mismatch! Expected auth_token, got {token}")
+    logger.warning(
+        f"[WHATSAPP] Token Mismatch! Expected identity {expected_preview}, got {token}"
+    )
     return PlainTextResponse("Forbidden", status_code=403)
 
 

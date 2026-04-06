@@ -103,30 +103,35 @@ class SyncDBService:
 
             return {"status": "success", "inserted": len(df)}
 
-    def evaluate_strategy(self, symbol: str, days: int = 3):
+    def evaluate_strategy(self, symbol: str, count: int = 288):
+        """
+        Evaluates the strategy on exactly the last N bars.
+        Default 288 = 3 days of 15m candles.
+        """
         try:
-            from utils.trading_utils import filter_last_trading_days
-
             with MarketDataAPI() as api:
-                # 1. Over-fetch (e.g. 7 days) to ensure we find at least 3 trading sessions
-                # This guarantees data even on a Monday morning.
-                df_raw = api.get_resampled_candles(symbol, interval="15m", start="-7d")
+                # 1. Fetch enough raw data for 'Warm-Up' context
+                # We fetch 7 days so indicators have history before the N-bar slice.
+                df_full = api.get_resampled_candles(symbol, interval="15m", start="-7d")
 
-                # 2. Slice to exactly the last N trading days
-                df = filter_last_trading_days(df_raw, n_days=days)
-
-                if df is None or df.empty:
+                if df_full is None or df_full.empty:
                     return None, {"action": "HOLD", "signal_code": 0}
 
-                df = Indicators.add_dynamic_support_resistance(df, window=50)
-                df = Indicators.add_atr(df, period=14)
+                # 2. Calculate BASE Indicators (SR/ATR) on full context
+                # Fixed 50-bar window for SR sensitivity as requested
+                df_full = Indicators.add_dynamic_support_resistance(df_full, window=50)
+                df_full = Indicators.add_atr(df_full, period=14)
 
-                # Apply strategy to the whole window for visualization
+                # 3. Slice to EXACTLY the last N bars for the dashboard
+                df = df_full.tail(count).copy()
+
+                # 4. Apply Strategy to the correctly sized slice
+                # Strategy uses the fixed Sup_50/Res_50 columns
                 df = Strategy.bounce_rejection(
                     df, sup_col="Sup_50", res_col="Res_50", atr_col="ATR_14"
                 )
 
-                # Still get the latest signal for the summary
+                # Get the summary signal
                 latest_signal = Strategy.get_current_signal(
                     df, sup_col="Sup_50", res_col="Res_50", atr_col="ATR_14"
                 )

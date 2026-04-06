@@ -198,9 +198,9 @@ async def verify_history(payload: TradeDBPayload):
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, symbol: str = "EURUSD", days: int = 3):
-    logger.info(f"GET /dashboard: {symbol} (range={days}d)")
-    df, latest_signal = sync_db_service.evaluate_strategy(symbol, days=days)
+async def dashboard(request: Request, symbol: str = "EURUSD", count: int = 288):
+    logger.info(f"GET /dashboard: {symbol} (count={count} bars)")
+    df, latest_signal = sync_db_service.evaluate_strategy(symbol, count=count)
 
     if df is None or df.empty:
         return templates.TemplateResponse(
@@ -212,6 +212,7 @@ async def dashboard(request: Request, symbol: str = "EURUSD", days: int = 3):
                 "last_price": "N/A",
                 "last_sync": "N/A",
                 "chart_html": "<h4>No data found in InfluxDB for this symbol/range.</h4>",
+                "latest_signal": {"action": "HOLD", "signal_code": 0},
             },
         )
 

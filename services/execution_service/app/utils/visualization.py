@@ -204,20 +204,53 @@ class MarketVisualizer:
         else:
             raise ValueError("chart_type must be 'candle' or 'line'")
 
-        # --- 2. Indicator Overlays ---
+        # --- 2. Indicator Overlays & SR Bands ---
         if overlays:
+            # 2.1 Detect SR Pairs for 'Color Bands'
+            sup_cols = [c for c in overlays if "Sup_" in c]
+            res_cols = [c for c in overlays if "Res_" in c]
+
+            # If we have a matching pair, draw the shaded 'Zone' first (so it's behind the lines)
+            if sup_cols and res_cols:
+                s_col, r_col = sup_cols[0], res_cols[0]
+                if s_col in df.columns and r_col in df.columns:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=df.index.tolist() + df.index[::-1].tolist(),
+                            y=df[r_col].tolist() + df[s_col][::-1].tolist(),
+                            fill="toself",
+                            fillcolor="rgba(38, 166, 154, 0.05)",  # Very soft teal zone
+                            line=dict(color="rgba(255,255,255,0)"),
+                            hoverinfo="skip",
+                            showlegend=True,
+                            name="SR Zone",
+                        ),
+                        row=1,
+                        col=1,
+                    )
+
+            # 2.2 Draw the actual Indicator Lines
             for i, col in enumerate(overlays):
                 if col in df.columns:
+                    # Use distinct styles for SR vs other indicators
+                    is_sr = "Sup_" in col or "Res_" in col
+                    line_style = dict(
+                        width=1.5 if not is_sr else 2.0,
+                        dash="dash" if is_sr else "solid",
+                        color=(
+                            INDICATOR_COLORS[i % len(INDICATOR_COLORS)]
+                            if not is_sr
+                            else ("#26A69A" if "Res_" in col else "#EF5350")
+                        ),
+                    )
+
                     fig.add_trace(
                         go.Scatter(
                             x=df.index,
                             y=df[col],
                             mode="lines",
                             name=col,
-                            line=dict(
-                                width=1.5,
-                                color=INDICATOR_COLORS[i % len(INDICATOR_COLORS)],
-                            ),
+                            line=line_style,
                         ),
                         row=1,
                         col=1,
