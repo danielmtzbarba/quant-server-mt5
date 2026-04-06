@@ -1,4 +1,4 @@
- terraform {
+terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -31,7 +31,7 @@ resource "google_project_service" "apis" {
   for_each = toset(local.services)
   project  = var.project_id
   service  = each.key
-  
+
   disable_on_destroy = false
 }
 
@@ -44,7 +44,7 @@ data "http" "my_ip" {
 resource "google_compute_firewall" "restricted_access" {
   name    = "allow-restricted-access"
   network = "default"
-  
+
   depends_on = [google_project_service.apis]
 
   allow {
@@ -66,7 +66,7 @@ resource "google_compute_firewall" "restricted_access" {
 
 # 3. Secret Manager: Store sensitive tokens
 resource "google_secret_manager_secret" "openai_key" {
-  secret_id = "OPENAI_API_KEY"
+  secret_id  = "OPENAI_API_KEY"
   depends_on = [google_project_service.apis]
   replication {
     auto {}
@@ -74,7 +74,7 @@ resource "google_secret_manager_secret" "openai_key" {
 }
 
 resource "google_secret_manager_secret" "whatsapp_api_token" {
-  secret_id = "WHATSAPP_API_TOKEN"
+  secret_id  = "WHATSAPP_API_TOKEN"
   depends_on = [google_project_service.apis]
   replication {
     auto {}
@@ -82,7 +82,7 @@ resource "google_secret_manager_secret" "whatsapp_api_token" {
 }
 
 resource "google_secret_manager_secret" "whatsapp_auth_token" {
-  secret_id = "WHATSAPP_AUTH_TOKEN"
+  secret_id  = "WHATSAPP_AUTH_TOKEN"
   depends_on = [google_project_service.apis]
   replication {
     auto {}
@@ -90,7 +90,7 @@ resource "google_secret_manager_secret" "whatsapp_auth_token" {
 }
 
 resource "google_secret_manager_secret" "admin_token" {
-  secret_id = "ADMIN_TOKEN"
+  secret_id  = "ADMIN_TOKEN"
   depends_on = [google_project_service.apis]
   replication {
     auto {}
@@ -98,14 +98,14 @@ resource "google_secret_manager_secret" "admin_token" {
 }
 
 resource "google_secret_manager_secret" "tailscale_auth_key" {
-  secret_id = "TAILSCALE_AUTH_KEY"
+  secret_id  = "TAILSCALE_AUTH_KEY"
   depends_on = [google_project_service.apis]
   replication {
     auto {}
   }
 }
 
-  # 4. GCE Instance (e2-micro)
+# 4. GCE Instance (e2-micro)
 resource "google_compute_instance" "quant_vm" {
   name         = var.instance_name
   machine_type = var.machine_type
