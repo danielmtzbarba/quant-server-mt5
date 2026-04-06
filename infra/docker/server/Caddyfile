@@ -3,8 +3,13 @@
     email danielmtz.dev@gmail.com
 }
 
-:80, :443 {
-    # 1. THE WEBHOOK DOOR: Pure Handshake (Meta API)
+quant.danielmtzbarba.com {
+    # 1. THE HEALTH BRIDGE: For external status checks
+    handle /health* {
+        reverse_proxy messaging_service:8003
+    }
+
+    # 2. THE WEBHOOK DOOR: Pure Handshake (Meta API)
     # Match both /webhook and /api/webhook using a named matcher
     @webhooks {
         path /webhook* /api/webhook*
@@ -23,7 +28,7 @@
         }
     }
 
-    # 2. THE CHASM: Drop everything else
+    # 3. THE CHASM: Drop everything else
     handle {
         abort
     }
