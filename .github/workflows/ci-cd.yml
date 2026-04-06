@@ -75,7 +75,7 @@ jobs:
           context: .
           file: ./infra/docker/base.Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/quant-base:latest
+          tags: ghcr.io/${{ github.repository_owner }}/quant-server-mt5-base:latest
           cache-from: type=gha,scope=base
           cache-to: type=gha,mode=max,scope=base
 
