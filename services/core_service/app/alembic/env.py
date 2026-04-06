@@ -23,7 +23,7 @@ if DATABASE_URL:
     # Alembic usually needs a sync driver for standard 'online' migrations
     # if using async drivers in the app, we might need to swap the driver here
     # or use the async template. For simplicity, we'll try to convert asyncpg to psycopg
-    sync_url = DATABASE_URL.replace("asyncpg", "psycopg")
+    sync_url = DATABASE_URL.replace("asyncpg", "psycopg2")
     config.set_main_option("sqlalchemy.url", sync_url)
 
 # Interpret the config file for Python logging.
