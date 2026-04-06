@@ -7,7 +7,8 @@ COPY libs/ ./libs/
 COPY services/core_service/ ./services/core_service/
 # Ensure only core_service dependencies are resolved if possible, 
 # but uv sync root is safer for workspace consistency.
-RUN uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
 # Stage 2: Runtime
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim

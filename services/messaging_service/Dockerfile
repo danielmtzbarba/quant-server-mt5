@@ -5,7 +5,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY libs/ ./libs/
 COPY services/messaging_service/ ./services/messaging_service/
-RUN uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
 # Stage 2: Runtime
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
