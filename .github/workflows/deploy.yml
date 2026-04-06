@@ -64,56 +64,67 @@ jobs:
           CORE_ENV: ${{ secrets.CORE_ENV }}
           EXECUTION_ENV: ${{ secrets.EXECUTION_ENV }}
           MESSAGING_ENV: ${{ secrets.MESSAGING_ENV }}
-        uses: 'google-github-actions/ssh-compute@v0'
-        with:
-          instance_name: ${{ steps.vm_meta.outputs.name }}
-          zone: ${{ steps.vm_meta.outputs.zone }}
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          user: danielmtz
-          use_iap: true
-          command: |
-            # --- Wait for Startup Script Readiness ---
-            echo "Waiting for Docker and Git to be fully installed by startup script..."
-            timeout 180s bash -c 'until command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; do echo "Checking tools..." && sleep 10; done'
-            
-            # --- Inject Environment Secrets (Defensive) ---
-            echo "Injecting service environment files..."
-            mkdir -p /app/infra/envs
-            [ -n "$SHARED_ENV" ] && echo "$SHARED_ENV" > /app/infra/envs/shared.env || echo "Skipping shared.env (empty)"
-            [ -n "$CORE_ENV" ] && echo "$CORE_ENV" > /app/infra/envs/core.env || echo "Skipping core.env (empty)"
-            [ -n "$EXECUTION_ENV" ] && echo "$EXECUTION_ENV" > /app/infra/envs/execution.env || echo "Skipping execution.env (empty)"
-            [ -n "$MESSAGING_ENV" ] && echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env || echo "Skipping messaging.env (empty)"
-            
-            # --- Perform Deployment ---
-            cd /app && git pull
-            export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
-            docker compose -f infra/docker/server/docker-compose.yml pull
-            docker compose -f infra/docker/server/docker-compose.yml up -d
-            
-            # --- Post-Deployment Health Check ---
-            echo "Running health checks for services (8001, 8002, 8003)..."
-            max_retries=12
-            for i in $(seq 1 $max_retries); do
-              core_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/ || echo "000")
-              exec_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8002/ || echo "000")
-              msg_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8003/ || echo "000")
+        run: |
+          # Use gcloud to SSH through the IAP tunnel
+          # We pass the entire script as a single command string
+          gcloud compute ssh ${{ steps.vm_meta.outputs.name }} \
+            --zone=${{ steps.vm_meta.outputs.zone }} \
+            --project=${{ vars.GCP_PROJECT_ID }} \
+            --tunnel-through-iap \
+            --command="
+              # --- Inject environment variables into the remote shell ---
+              export SHARED_ENV='${SHARED_ENV}'
+              export CORE_ENV='${CORE_ENV}'
+              export EXECUTION_ENV='${EXECUTION_ENV}'
+              export MESSAGING_ENV='${MESSAGING_ENV}'
               
-              if [[ "$core_ok" != "000" && "$exec_ok" != "000" && "$msg_ok" != "000" ]]; then
-                echo "All services are UP and responding!"
-                echo "--------------------------------------------------------"
-                echo "Tailscale IP for access: $(tailscale ip -4)"
-                echo "Admin Dashboard: http://$(tailscale ip -4):8001/admin"
-                echo "--------------------------------------------------------"
-                exit 0
-              fi
-              
-              echo "Waiting for services... (Attempt $i/$max_retries)"
-              sleep 5
-            done
-            
-            echo "--------------------------------------------------------"
-            echo "ERROR: Health check failed! Printing diagnostics..."
-            echo "--------------------------------------------------------"
-            docker compose -f infra/docker/server/docker-compose.yml ps
-            docker compose -f infra/docker/server/docker-compose.yml logs --tail=20
-            exit 1
+              # --- Run the deployment script ---
+              bash -s <<'EOF'
+                set -e
+                # --- Wait for Startup Script Readiness ---
+                echo 'Waiting for Docker and Git to be fully installed by startup script...'
+                timeout 180s bash -c 'until command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; do echo \"Checking tools...\" && sleep 10; done'
+                
+                # --- Inject Environment Secrets (Defensive) ---
+                echo 'Injecting service environment files...'
+                mkdir -p /app/infra/envs
+                [ -n \"\$SHARED_ENV\" ] && echo \"\$SHARED_ENV\" > /app/infra/envs/shared.env || echo 'Skipping shared.env (empty)'
+                [ -n \"\$CORE_ENV\" ] && echo \"\$CORE_ENV\" > /app/infra/envs/core.env || echo 'Skipping core.env (empty)'
+                [ -n \"\$EXECUTION_ENV\" ] && echo \"\$EXECUTION_ENV\" > /app/infra/envs/execution.env || echo 'Skipping execution.env (empty)'
+                [ -n \"\$MESSAGING_ENV\" ] && echo \"\$MESSAGING_ENV\" > /app/infra/envs/messaging.env || echo 'Skipping messaging.env (empty)'
+                
+                # --- Perform Deployment ---
+                cd /app && git pull
+                export GITHUB_REPOSITORY_OWNER=danielmtzbarba
+                docker compose -f infra/docker/server/docker-compose.yml pull
+                docker compose -f infra/docker/server/docker-compose.yml up -d
+                
+                # --- Post-Deployment Health Check ---
+                echo 'Running health checks for services (8001, 8002, 8003)...'
+                max_retries=12
+                for i in \$(seq 1 \$max_retries); do
+                  core_ok=\$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8001/ || echo \"000\")
+                  exec_ok=\$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8002/ || echo \"000\")
+                  msg_ok=\$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8003/ || echo \"000\")
+                  
+                  if [[ \"\$core_ok\" != \"000\" && \"\$exec_ok\" != \"000\" && \"\$msg_ok\" != \"000\" ]]; then
+                    echo 'All services are UP and responding!'
+                    echo '--------------------------------------------------------'
+                    echo \"Tailscale IP for access: \$(tailscale ip -4)\"
+                    echo \"Admin Dashboard: http://\$(tailscale ip -4):8001/admin\"
+                    echo '--------------------------------------------------------'
+                    exit 0
+                  fi
+                  
+                  echo \"Waiting for services... (Attempt \$i/\$max_retries)\"
+                  sleep 5
+                done
+                
+                echo '--------------------------------------------------------'
+                echo 'ERROR: Health check failed! Printing diagnostics...'
+                echo '--------------------------------------------------------'
+                docker compose -f infra/docker/server/docker-compose.yml ps
+                docker compose -f infra/docker/server/docker-compose.yml logs --tail=20
+                exit 1
+EOF
+            "
