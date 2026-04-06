@@ -40,7 +40,24 @@ data "http" "my_ip" {
   url = "http://checkip.amazonaws.com"
 }
 
-# 2. Firewall: Allow SSH and internal microservice ports (8001-8003)
+# 2. Firewall: Allow SSH via IAP (Zero-Exposure)
+resource "google_compute_firewall" "allow_ssh" {
+  name    = "allow-ssh-iap"
+  network = "default"
+
+  depends_on = [google_project_service.apis]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  # Only allow Google's IAP Proxy range
+  source_ranges = ["35.235.240.0/20"]
+  target_tags   = ["quant-server"]
+}
+
+# 3. Firewall: Restricted ports (8001-8003)
 resource "google_compute_firewall" "restricted_access" {
   name    = "allow-restricted-access"
   network = "default"
@@ -49,7 +66,7 @@ resource "google_compute_firewall" "restricted_access" {
 
   allow {
     protocol = "tcp"
-    ports    = ["22", "8001", "8002", "8003"]
+    ports    = ["8001", "8002", "8003"]
   }
 
   # Restrict to: My IP + Meta Webhook Ranges
@@ -267,8 +284,30 @@ resource "google_project_iam_member" "vm_secret_accessor" {
   member  = "serviceAccount:861553998922-compute@developer.gserviceaccount.com"
 }
 
+# Allow GitHub to use IAP Tunnels
+resource "google_project_iam_member" "gha_iap_accessor" {
+  project = var.project_id
+  role    = "roles/iap.tunnelResourceAccessor"
+  member  = "serviceAccount:github-actions-deployer@${var.project_id}.iam.gserviceaccount.com"
+}
+
+# Allow GitHub to manage instances (needed for gcloud compute ssh)
+resource "google_project_iam_member" "gha_instance_admin" {
+  project = var.project_id
+  role    = "roles/compute.instanceAdmin.v1"
+  member  = "serviceAccount:github-actions-deployer@${var.project_id}.iam.gserviceaccount.com"
+}
+
 output "wif_provider_name" {
   value = google_iam_workload_identity_pool_provider.github_provider.name
+}
+
+output "vm_name" {
+  value = google_compute_instance.quant_vm.name
+}
+
+output "vm_zone" {
+  value = google_compute_instance.quant_vm.zone
 }
 
 output "vm_ip" {

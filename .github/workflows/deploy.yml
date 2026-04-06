@@ -50,25 +50,28 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve tfplan
 
-      - name: Get VM IP
+      - name: Get VM Metadata
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        id: vm_ip
-        run: echo "ip=$(terraform output -raw vm_ip)" >> $GITHUB_OUTPUT
+        id: vm_meta
+        run: |
+          echo "name=$(terraform output -raw vm_name)" >> $GITHUB_OUTPUT
+          echo "zone=$(terraform output -raw vm_zone)" >> $GITHUB_OUTPUT
 
-      - name: Deploy via SSH
+      - name: Deploy via IAP SSH
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           SHARED_ENV: ${{ secrets.SHARED_ENV }}
           CORE_ENV: ${{ secrets.CORE_ENV }}
           EXECUTION_ENV: ${{ secrets.EXECUTION_ENV }}
           MESSAGING_ENV: ${{ secrets.MESSAGING_ENV }}
-        uses: appleboy/ssh-action@v1.0.3
+        uses: 'google-github-actions/ssh-compute@v0'
         with:
-          host: ${{ steps.vm_ip.outputs.ip }}
-          username: danielmtz
-          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
-          envs: SHARED_ENV,CORE_ENV,EXECUTION_ENV,MESSAGING_ENV
-          script: |
+          instance_name: ${{ steps.vm_meta.outputs.name }}
+          zone: ${{ steps.vm_meta.outputs.zone }}
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          user: danielmtz
+          use_iap: true
+          command: |
             # --- Wait for Startup Script Readiness ---
             echo "Waiting for Docker and Git to be fully installed by startup script..."
             timeout 180s bash -c 'until command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; do echo "Checking tools..." && sleep 10; done'
