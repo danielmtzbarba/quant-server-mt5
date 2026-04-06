@@ -1,0 +1,215 @@
+name: CI/CD (Master Pipeline)
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Quality Assurance (Lint & Test)
+  # ---------------------------------------------------------------------------
+  qa:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run Ruff (Linting)
+        run: uv run ruff check .
+
+      - name: Run Ruff (Formatting Check)
+        run: uv run ruff format --check .
+
+      - name: Run Tests (Pytest)
+        run: uv run pytest
+        env:
+          PYTHONPATH: .
+          CORE_SERVICE_URL: http://localhost:8001
+          EXECUTION_SERVICE_URL: http://localhost:8002
+
+  # ---------------------------------------------------------------------------
+  # 2. Build & Push to GHCR (Depends on QA)
+  # ---------------------------------------------------------------------------
+  build-and-push:
+    name: Build & Push
+    needs: qa
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [core_service, execution_service, messaging_service]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (Keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-actions-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------------------
+  # 3. Terraform (Infrastructure Management)
+  # ---------------------------------------------------------------------------
+  terraform:
+    name: "Terraform"
+    needs: qa
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (Keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-actions-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Format
+        run: terraform fmt -check
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var="project_id=${{ vars.GCP_PROJECT_ID }}" -var="github_repo_url=https://github.com/${{ github.repository }}" -var="ssh_public_key=${{ secrets.GCP_SSH_PUBLIC_KEY }}"
+
+      - name: Get VM Metadata
+        id: vm_meta
+        run: |
+          echo "name=$(terraform output -raw vm_name)" >> $GITHUB_OUTPUT
+          echo "zone=$(terraform output -raw vm_zone)" >> $GITHUB_OUTPUT
+    outputs:
+      vm_name: ${{ steps.vm_meta.outputs.name }}
+      vm_zone: ${{ steps.vm_meta.outputs.zone }}
+
+  # ---------------------------------------------------------------------------
+  # 4. Zero-Exposure Deployment (Depends on Build & Terraform)
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Continuous Deployment
+    needs: [build-and-push, terraform]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      SHARED_ENV: ${{ secrets.SHARED_ENV }}
+      CORE_ENV: ${{ secrets.CORE_ENV }}
+      EXECUTION_ENV: ${{ secrets.EXECUTION_ENV }}
+      MESSAGING_ENV: ${{ secrets.MESSAGING_ENV }}
+    steps:
+      - name: Authenticate to GCP (Keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-actions-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Deploy via IAP SSH
+        run: |
+          # Use gcloud to SSH through the secure IAP tunnel
+          gcloud compute ssh ${{ needs.terraform.outputs.vm_name }} \
+            --zone=${{ needs.terraform.outputs.vm_zone }} \
+            --project=${{ vars.GCP_PROJECT_ID }} \
+            --tunnel-through-iap \
+            --command="
+              # --- Inject environment variables ---
+              export SHARED_ENV='${SHARED_ENV}'
+              export CORE_ENV='${CORE_ENV}'
+              export EXECUTION_ENV='${EXECUTION_ENV}'
+              export MESSAGING_ENV='${MESSAGING_ENV}'
+              
+              # --- Execute scripted block on remote VM ---
+              bash -s <<'EOF'
+                set -e
+                
+                # 1. Wait for VM Startup readiness
+                echo 'Waiting for Docker and Git to be ready...'
+                timeout 180s bash -c 'until command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; do echo \"Checking tools...\" && sleep 10; done'
+                
+                # 2. Inject Secrets Defensively
+                echo 'Injecting environment files...'
+                mkdir -p /app/infra/envs
+                [ -n \"\$SHARED_ENV\" ] && echo \"\$SHARED_ENV\" > /app/infra/envs/shared.env || echo 'Skipping shared.env (empty)'
+                [ -n \"\$CORE_ENV\" ] && echo \"\$CORE_ENV\" > /app/infra/envs/core.env || echo 'Skipping core.env (empty)'
+                [ -n \"\$EXECUTION_ENV\" ] && echo \"\$EXECUTION_ENV\" > /app/infra/envs/execution.env || echo 'Skipping execution.env (empty)'
+                [ -n \"\$MESSAGING_ENV\" ] && echo \"\$MESSAGING_ENV\" > /app/infra/envs/messaging.env || echo 'Skipping messaging.env (empty)'
+                
+                # 3. Perform Deploy
+                cd /app && git pull
+                export GITHUB_REPOSITORY_OWNER=danielmtzbarba
+                docker compose -f infra/docker/server/docker-compose.yml pull
+                docker compose -f infra/docker/server/docker-compose.yml up -d
+                
+                # 4. Success Verification (Health Check)
+                echo 'Running health checks...'
+                max_retries=12
+                for i in \$(seq 1 \$max_retries); do
+                  core_ok=\$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8001/ || echo \"000\")
+                  exec_ok=\$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8002/ || echo \"000\")
+                  msg_ok=\$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8003/ || echo \"000\")
+                  
+                  if [[ \"\$core_ok\" != \"000\" && \"\$exec_ok\" != \"000\" && \"\$msg_ok\" != \"000\" ]]; then
+                    echo '--------------------------------------------------------'
+                    echo 'SUCCESS: All services are UP and responding!'
+                    echo \"Tailscale IP: \$(tailscale ip -4)\"
+                    echo \"Admin Dashboard: http://\$(tailscale ip -4):8001/admin\"
+                    echo '--------------------------------------------------------'
+                    exit 0
+                  fi
+                  echo \"Waiting for services... (Attempt \$i/\$max_retries)\"
+                  sleep 5
+                done
+                
+                echo 'ERROR: Health Check Failed!'
+                docker compose -f infra/docker/server/docker-compose.yml ps
+                docker compose -f infra/docker/server/docker-compose.yml logs --tail=20
+                exit 1
+EOF
+            "
