@@ -62,6 +62,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Authenticate to GCP (Keyless)
         uses: google-github-actions/auth@v2
         with:
