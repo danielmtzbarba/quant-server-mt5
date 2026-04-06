@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request
 import uvicorn
-import logging
 from fastapi.responses import PlainTextResponse
 from services.bot_service import bot_service
 from whatsapp.message import Message
