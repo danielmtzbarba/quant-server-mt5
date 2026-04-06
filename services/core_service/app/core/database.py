@@ -8,7 +8,11 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     # Default for development if not set, but should be set in .env
-    DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/trading_app"
+    # Use environment variables for Tailscale/Production connectivity
+    DATABASE_URL = os.getenv(
+        "DATABASE_URL", 
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/trading_app"
+    )
 
 engine = create_async_engine(
     DATABASE_URL,
