@@ -1,0 +1,34 @@
+services:
+  mt5-engine:
+    image: mt5-engine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mt5_engine
+    restart: unless-stopped
+    env_file:
+      - .env
+    # The absolute best way to secure a container.
+    network_mode: service:tailscale-mt5
+    depends_on:
+      - tailscale-mt5
+
+  tailscale-mt5:
+    image: tailscale/tailscale:latest
+    container_name: tailscale_mt5
+    hostname: mt5-engine-azure
+    env_file:
+      - .env
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+    restart: unless-stopped
+    # PORTS REMOVED: VNC (5900) and FastAPI (8000) are now completely hidden
+    # from the public internet and the host VM itself. 
+    # Access is only possible via the Tailscale private network.
+
+volumes:
+  tailscale_state:
