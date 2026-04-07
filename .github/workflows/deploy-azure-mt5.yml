@@ -18,8 +18,13 @@ jobs:
   # 1. Infrastructure (Terraform)
   # ---------------------------------------------------------------------------
   terraform:
-    name: Azure Infrastructure
+    name: Azure Infrastructure (${{ matrix.region }} - ${{ matrix.tier }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tier: [Standard_B1s, Standard_B2s]
+        region: [eastus, eastus2, centralus, westus2, westeurope, northeurope]
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -75,6 +80,8 @@ jobs:
             -var="AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
             -var="AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" \
             -var="AZURE_RESOURCE_GROUP=${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -var="AZURE_LOCATION=${{ matrix.region }}" \
+            -var="AZURE_VM_SIZE=${{ matrix.tier }}" \
             -var="ADMIN_IP=${{ secrets.ADMIN_IP }}" \
             -var="SSH_PUBLIC_KEY=${{ secrets.GCP_SSH_PUBLIC_KEY }}" \
             -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}"

@@ -26,9 +26,8 @@ variable "AZURE_RESOURCE_GROUP" {
 }
 
 variable "AZURE_LOCATION" {
-  description = "The Azure region for the deployment."
+  description = "The Azure region (controlled by GHA matrix)."
   type        = string
-  default     = "East US"
 }
 
 variable "AZURE_INSTANCE_NAME" {
@@ -38,8 +37,7 @@ variable "AZURE_INSTANCE_NAME" {
 }
 
 variable "AZURE_VM_SIZE" {
-  description = "The size of the Azure VM (using B2s as a temporary workaround for B1s capacity constraints in eastus)."
+  description = "The size of the Azure VM (controlled by GHA matrix)."
   type        = string
-  default     = "Standard_B2s"
 }
 
