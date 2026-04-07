@@ -92,7 +92,7 @@ resource "google_compute_firewall" "allow_admin_vault" {
   }
 
   # Whitelist the user-specified Admin IP (Prevents GHA Tug-of-War)
-  source_ranges = ["${var.admin_ip}/32"]
+  source_ranges = ["${var.ADMIN_IP}/32"]
   target_tags   = ["quant-server"]
 }
 
@@ -232,7 +232,7 @@ resource "google_compute_instance" "quant_vm" {
     # 9. Clone Repository (for infra config)
     if [ ! -d /app ]; then
         mkdir -p /app
-        git clone ${var.github_repo_url} /app
+        git clone ${var.GITHUB_REPO_URL} /app
     else
         echo "Directory /app exists. Pulling latest..."
         cd /app && git pull
@@ -253,7 +253,7 @@ resource "google_compute_instance" "quant_vm" {
 
   # Inject SSH public key for GitHub Actions deployment
   metadata = {
-    ssh-keys = "danielmtz:${var.ssh_public_key}"
+    ssh-keys = "danielmtz:${var.SSH_PUBLIC_KEY}"
   }
 
   # Ensure the service account has permission to read secrets
