@@ -8,7 +8,7 @@ logger = setup_logging("execution-service", tag="TRADING", color="green")
 
 CORE_SERVICE_URL = get_env_var("CORE_SERVICE_URL", "http://127.0.0.1:8001")
 MESSAGING_SERVICE_URL = get_env_var("MESSAGING_SERVICE_URL", "http://127.0.0.1:8003")
-MT5_ENGINE_URL = get_env_var("MT5_ENGINE_URL", "http://100.119.34.104:8000")
+MT5_ENGINE_URL = get_env_var("MT5_ENGINE_URL", "http://mt5-engine-azure:8000")
 MAX_POSITIONS = int(get_env_var("MAX_POSITIONS", "5"))
 
 

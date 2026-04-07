@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
     import httpx
     import asyncio
 
-    MT5_ENGINE_URL = os.environ.get("MT5_ENGINE_URL", "http://100.119.34.104:8000")
+    MT5_ENGINE_URL = os.environ.get("MT5_ENGINE_URL", "http://mt5-engine-azure:8000")
 
     async def configure_tracking():
         try:
@@ -109,7 +109,7 @@ async def close_position(ticket: int):
     import httpx
     import os
 
-    MT5_ENGINE_URL = os.environ.get("MT5_ENGINE_URL", "http://100.119.34.104:8000")
+    MT5_ENGINE_URL = os.environ.get("MT5_ENGINE_URL", "http://mt5-engine-azure:8000")
 
     async with httpx.AsyncClient() as client:
         try:

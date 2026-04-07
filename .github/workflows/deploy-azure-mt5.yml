@@ -1,0 +1,117 @@
+name: Deploy MT5 Engine (Azure)
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'infra/docker/trading_engine/**'
+      - 'infra/terraform/azure_*.tf'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Infrastructure (Terraform)
+  # ---------------------------------------------------------------------------
+  terraform:
+    name: Azure Infrastructure
+    runs-on: ubuntu-latest
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infra/terraform
+
+      - name: Terraform Apply
+        run: |
+          terraform apply -auto-approve \
+            -var="azure_client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var="azure_client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
+            -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -var="azure_tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var="azure_resource_group=${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -var="admin_ip=${{ secrets.ADMIN_IP }}" \
+            -var="ssh_public_key=${{ secrets.GCP_SSH_PUBLIC_KEY }}" \
+            -var="github_repo_url=https://github.com/${{ github.repository }}"
+        working-directory: infra/terraform
+
+  # ---------------------------------------------------------------------------
+  # 2. Build & Push Image (GHCR)
+  # ---------------------------------------------------------------------------
+  build-and-push:
+    name: Build MT5 Engine
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./infra/docker/trading_engine
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/mt5-engine:latest
+            ghcr.io/${{ github.repository_owner }}/mt5-engine:${{ github.sha }}
+
+  # ---------------------------------------------------------------------------
+  # 3. Deploy to Azure VM via SSH
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to Azure
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Get Azure VM Status
+        run: |
+            # We assume the VM is named "mt5-engine-azure" as per terraform defaults
+            # In a production setup, we'd fetch the IP from terraform output, but
+            # MagicDNS "mt5-engine-azure" will work if Tailscale is already up.
+            echo "Deploying to Azure VM..."
+
+      - name: SSH and Restart Stack
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: mt5-engine-azure
+          username: danielmtz
+          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.TAILSCALE_BASTION_IP }} # Optional
+          # Note: If MagicDNS isn't propagated yet, the first run might need the IP
+          script: |
+            cd /app
+            git pull origin dev
+            cd infra/docker/trading_engine
+            # Injecting critical envs for local compose run
+            echo "MT5_LOGIN=${{ secrets.MT5_LOGIN }}" > .env
+            echo "MT5_PASSWORD=${{ secrets.MT5_PASSWORD }}" >> .env
+            echo "MT5_SERVER=${{ secrets.MT5_SERVER }}" >> .env
+            echo "BACKEND_URL=${{ vars.BACKEND_URL }}" >> .env
+            echo "TS_AUTHKEY=${{ secrets.TAILSCALE_AUTH_KEY }}" >> .env
+            
+            docker compose pull
+            docker compose up -d
+            docker compose ps
