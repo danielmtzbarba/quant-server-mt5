@@ -26,9 +26,33 @@ services:
       - net_admin
       - sys_module
     restart: unless-stopped
-    # PORTS REMOVED: VNC (5900) and FastAPI (8000) are now completely hidden
-    # from the public internet and the host VM itself. 
-    # Access is only possible via the Tailscale private network.
+
+  influxdb-mt5:
+    image: influxdb:2.7
+    container_name: influxdb_mt5
+    restart: unless-stopped
+    network_mode: service:tailscale-mt5
+    depends_on:
+      - tailscale-mt5
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword # User should change this
+      - DOCKER_INFLUXDB_INIT_ORG=danielmtz
+      - DOCKER_INFLUXDB_INIT_BUCKET=tradedb
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=X3jsB_yeGU3Il5BINWNYNicYDQ7dkhjbG4PHUAN6yt9XuJHaN8Bj7ROyQr81h-Vwh3Qw6qHNMLF2wylXdaEnFQ==
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    # Hide from public, only reachable via service name within Docker or Tailscale sidecar
+    # If needing Tailscale access, we'd add network_mode: service:tailscale-mt5 
+    # but for now, simple internal networking is safer.
 
 volumes:
   tailscale_state:
+  influxdb_data:
