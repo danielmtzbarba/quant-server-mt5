@@ -38,8 +38,8 @@ variable "AZURE_INSTANCE_NAME" {
 }
 
 variable "AZURE_VM_SIZE" {
-  description = "The size of the Azure VM."
+  description = "The size of the Azure VM (using B2s as a temporary workaround for B1s capacity constraints in eastus)."
   type        = string
-  default     = "Standard_B1s"
+  default     = "Standard_B2s"
 }
 
