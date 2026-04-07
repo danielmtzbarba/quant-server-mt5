@@ -1,4 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.pool import NullPool
 import os
 from dotenv import load_dotenv
 
@@ -11,12 +12,15 @@ if not DATABASE_URL:
     # This prevents the app from crashing during module import/tests
     DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
+
 engine = create_async_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     echo=False,
+    poolclass=NullPool,
     connect_args={
         "prepared_statement_cache_size": 0,
+        "statement_cache_size": 0,
     },
 )
 

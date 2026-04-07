@@ -28,22 +28,32 @@ class BotService:
                 resp = await client.get(f"{CORE_SERVICE_URL}/users/{msg.number}")
 
                 if resp.status_code == 404:
-                    # User not found, implement simplified signup or redirect
-                    # For brevity in this refactor, we'll assume a 'register' endpoint exists or handle it locally
                     logger.info(
-                        f"User {msg.number} not found. Triggering registration flow."
+                        f"User {msg.number} not found. Initializing atomic signup flow."
                     )
-                    # Simplified registration for now
-                    await client.post(
-                        f"{CORE_SERVICE_URL}/users",
-                        params={"phone_number": msg.number, "name": "New User"},
+                    signup_resp = await client.post(
+                        f"{CORE_SERVICE_URL}/users/signup/init",
+                        params={"phone_number": msg.number},
                     )
-                    response_msgs.append(
-                        msgs.text_message(
-                            msg.number,
-                            "¡Hola! 👋 Te he registrado automáticamente. ¡Ya puedes empezar!",
+
+                    if signup_resp.status_code == 200:
+                        response_msgs.append(
+                            msgs.text_message(
+                                msg.number,
+                                "¡Hola! 👋 Te he registrado automáticamente. ¡Ya puedes empezar!",
+                            )
                         )
-                    )
+                    else:
+                        logger.error(
+                            f"Failed to initialize signup for {msg.number}: {signup_resp.text}"
+                        )
+                        response_msgs.append(
+                            msgs.text_message(
+                                msg.number,
+                                "Lo siento, hubo un error técnico al registrarte. Por favor intenta de nuevo más tarde.",
+                            )
+                        )
+
                     whatsapp_service.send_messages(response_msgs)
                     return
 

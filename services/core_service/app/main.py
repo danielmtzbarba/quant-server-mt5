@@ -86,6 +86,49 @@ async def get_user(phone_number: str, db: AsyncSession = Depends(get_db)):
     return user
 
 
+@app.post("/users/signup/init")
+async def signup_init(phone_number: str, db: AsyncSession = Depends(get_db)):
+    """Atomic initialization: creates both the User record and their Signup Session."""
+    logger.info(f"DB: SIGNUP INIT {phone_number}")
+    from models.auth import SignupSession
+    from models.user import User
+
+    # 1. Ensure User exists
+    user_result = await db.execute(
+        select(User).where(User.phone_number == phone_number)
+    )
+    user = user_result.scalar_one_or_none()
+    if not user:
+        user = User(phone_number=phone_number, name="User Pending")
+        db.add(user)
+
+    # 2. Ensure SignupSession exists (or reset it)
+    session_result = await db.execute(
+        select(SignupSession).where(SignupSession.phone_number == phone_number)
+    )
+    session = session_result.scalar_one_or_none()
+    if not session:
+        session = SignupSession(
+            phone_number=phone_number, step="ASK_NAME", completed=False
+        )
+        db.add(session)
+    else:
+        session.step = "ASK_NAME"
+        session.completed = False
+
+    try:
+        await db.commit()
+        logger.info(f"DB: Signup records for {phone_number} synchronized successfully.")
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"DB: Atomic signup failure for {phone_number}: {e}")
+        raise HTTPException(
+            status_code=500, detail="Failed to initialize user signup state."
+        )
+
+    return user
+
+
 @app.post("/users")
 async def create_user(phone_number: str, name: str, db: AsyncSession = Depends(get_db)):
     logger.info(f"DB: CREATE User {phone_number} ({name})")
