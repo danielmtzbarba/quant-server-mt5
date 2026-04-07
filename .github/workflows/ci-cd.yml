@@ -169,9 +169,9 @@ jobs:
         run: |
           terraform apply -auto-approve \
             -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
-            -var="github_repo_url=https://github.com/${{ github.repository }}" \
-            -var="ssh_public_key=${{ secrets.GCP_SSH_PUBLIC_KEY }}" \
-            -var="admin_ip=${{ secrets.ADMIN_IP }}"
+            -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}" \
+            -var="SSH_PUBLIC_KEY=${{ secrets.GCP_SSH_PUBLIC_KEY }}" \
+            -var="ADMIN_IP=${{ secrets.ADMIN_IP }}"
 
       - name: Get VM Metadata
         id: vm_meta
