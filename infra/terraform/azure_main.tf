@@ -27,7 +27,8 @@ resource "azurerm_public_ip" "main" {
   name                = "mt5-public-ip"
   resource_group_name = var.AZURE_RESOURCE_GROUP
   location            = var.AZURE_LOCATION
-  allocation_method   = "Dynamic"
+  allocation_method   = "Static"
+  sku                 = "Standard"
 }
 
 # 4. Network Security Group (Whitelist Admin SSH only)

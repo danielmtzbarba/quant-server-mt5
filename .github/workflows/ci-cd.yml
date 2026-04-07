@@ -159,8 +159,15 @@ jobs:
         with:
           terraform_wrapper: false
 
+      - name: Isolating GCP Terraform
+        run: |
+          # Remove Azure-specific files for this GCP run
+          rm -f azure_main.tf azure_variables.tf
+        working-directory: infra/terraform
+
       - name: Terraform Init
         run: terraform init
+        working-directory: infra/terraform
 
       - name: Terraform Format
         run: terraform fmt -check
