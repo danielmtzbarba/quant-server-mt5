@@ -85,6 +85,24 @@ class BotService:
                     break
 
             if not found_command:
+                # Check if user tapped a strategy-name button to auto-subscribe
+                async with httpx.AsyncClient() as client:
+                    strategies_resp = await client.get(f"{CORE_SERVICE_URL}/strategies")
+                    if strategies_resp.status_code == 200:
+                        known_names = [
+                            s["name"].upper() for s in strategies_resp.json()
+                        ]
+                        if cleaned_text in known_names:
+                            # Synthesize a SUSCRIBIR command
+                            class _FakeMsg:
+                                number = msg.number
+                                text = f"SUSCRIBIR {cleaned_text}"
+
+                            result = await self._handle_subscribe(_FakeMsg())
+                            response_msgs.append(result)
+                            whatsapp_service.send_messages(response_msgs)
+                            return
+
                 state_input = {
                     "messages": [
                         HumanMessage(content=f"Mi número es {msg.number}. {msg.text}")
@@ -206,14 +224,15 @@ class BotService:
                 if not strategies:
                     return msgs.text_message(msg.number, "No hay estrategias activas.")
 
-                text = "📊 *Estrategias Disponibles:*\n\n"
+                text = "📊 *Estrategias Disponibles:*\n\nToca el nombre para suscribirte:\n\n"
+                # Button titles must be ≤20 chars — use strategy name directly
                 options = []
                 for s in strategies:
-                    text += f"• *{s['name']}*: {s['description']}\n"
-                    options.append(f"SUSCRIBIR {s['name']}")
+                    text += f"• *{s['name']}*\n  _{s['description']}_\n\n"
+                    options.append(s["name"][:20])
 
                 return msgs.buttonReply_Message(
-                    msg, options[:3], text, "Trading Center"
+                    msg, options[:3], text.strip(), "Trading Center"
                 )
         return msgs.text_message(msg.number, "Error al obtener estrategias.")
 
