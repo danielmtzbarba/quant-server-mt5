@@ -45,7 +45,7 @@ jobs:
       - name: Terraform Import (Self-Healing)
         run: |
           # Define common args to keep the commands readable
-          COMMON_ARGS="-var=\"AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}\" -var=\"AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}\" -var=\"AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}\" -var=\"AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}\" -var=\"AZURE_RESOURCE_GROUP=${{ vars.AZURE_RESOURCE_GROUP }}\" -var=\"ADMIN_IP=${{ secrets.ADMIN_IP }}\" -var=\"SSH_PUBLIC_KEY=${{ secrets.GCP_SSH_PUBLIC_KEY }}\" -var=\"GITHUB_REPO_URL=https://github.com/${{ github.repository }}\""
+          COMMON_ARGS="-var=\"AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}\" -var=\"AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}\" -var=\"AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}\" -var=\"AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}\" -var=\"AZURE_RESOURCE_GROUP=${{ vars.AZURE_RESOURCE_GROUP }}\" -var=\"ADMIN_IP=${{ secrets.ADMIN_IP }}\" -var=\"SSH_PUBLIC_KEY=${{ secrets.GCP_SSH_PUBLIC_KEY }}\" -var=\"GITHUB_REPO_URL=https://github.com/${{ github.repository }}\" -var=\"TAILSCALE_AUTH_KEY=${{ secrets.TAILSCALE_AUTH_KEY }}\""
           
           BASE_ID="/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ vars.AZURE_RESOURCE_GROUP }}/providers/Microsoft.Network"
 
