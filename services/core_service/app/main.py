@@ -142,6 +142,16 @@ async def get_signup_session(phone_number: str, db: AsyncSession = Depends(get_d
     return session
 
 
+@app.get("/users/id/{user_id}")
+async def get_user_by_id(user_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: GET User ID {user_id}")
+    repo = UserRepository(db)
+    user = await repo.get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
 @app.patch("/signup/session/{phone_number}")
 async def update_signup_session(
     phone_number: str, updates: dict, db: AsyncSession = Depends(get_db)

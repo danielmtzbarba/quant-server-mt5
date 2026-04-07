@@ -16,6 +16,7 @@ class TradingSignal(BaseModel):
     candle: Optional[Candle] = None
     timestamp: Optional[str] = None
     price: Optional[float] = None
+    volume: Optional[float] = None
     sl: Optional[float] = None
     tp: Optional[float] = None
 
@@ -26,6 +27,13 @@ class ExecutionRequest(BaseModel):
     volume: float
     price: Optional[float] = None
     ticket: Optional[int] = None
+
+
+class TradeErrorEvent(BaseModel):
+    action: str
+    symbol: str
+    retcode: int
+    message: str
 
 
 class PositionEvent(BaseModel):

@@ -3,7 +3,7 @@ from execution_queue.queue import mt5_queue
 from trade_db.api import MarketDataAPI
 from common_logging import setup_logging
 from common_config import get_env_var
-from common_events import TradingSignal, PositionEvent
+from common_events import TradingSignal, PositionEvent, TradeErrorEvent
 
 logger = setup_logging("execution-service", tag="TRADING", color="green")
 
@@ -170,7 +170,7 @@ class TradingService:
                     },
                 )
                 # 2. Notify user for confirmation
-                user_resp = await client.get(f"{CORE_SERVICE_URL}/users/{user_id}")
+                user_resp = await client.get(f"{CORE_SERVICE_URL}/users/id/{user_id}")
                 if user_resp.status_code == 200:
                     user = user_resp.json()
                     phone = user.get("phone_number")
@@ -209,7 +209,9 @@ class TradingService:
                 )
                 if acc_resp.status_code == 200:
                     user_id = acc_resp.json()["user_id"]
-                    user_resp = await client.get(f"{CORE_SERVICE_URL}/users/{user_id}")
+                    user_resp = await client.get(
+                        f"{CORE_SERVICE_URL}/users/id/{user_id}"
+                    )
                     if user_resp.status_code == 200:
                         user = user_resp.json()
                         phone = user.get("phone_number")
@@ -226,6 +228,40 @@ class TradingService:
                             )
             except Exception as e:
                 logger.error(f"Error handling closed position: {e}")
+
+    async def handle_trade_error(self, mt5_login: str, event: TradeErrorEvent):
+        """Handle real-time notification of a failed trade execution."""
+        logger.warning(
+            f"Trade Error for {mt5_login}: {event.action} {event.symbol} -> {event.message}"
+        )
+        async with httpx.AsyncClient() as client:
+            try:
+                # Resolve Account ➔ User
+                acc_resp = await client.get(
+                    f"{CORE_SERVICE_URL}/accounts/verify/{mt5_login}"
+                )
+                if acc_resp.status_code == 200:
+                    user_id = acc_resp.json()["user_id"]
+                    user_resp = await client.get(
+                        f"{CORE_SERVICE_URL}/users/id/{user_id}"
+                    )
+                    if user_resp.status_code == 200:
+                        user = user_resp.json()
+                        phone = user.get("phone_number")
+                        if phone:
+                            msg = (
+                                f"❌ *TRADE FAILED*\n\n"
+                                f"Action: {event.action}\n"
+                                f"Symbol: {event.symbol}\n"
+                                f"Reason: *{event.message}*\n"
+                                f"Code: {event.retcode}"
+                            )
+                            await client.post(
+                                f"{MESSAGING_SERVICE_URL}/send",
+                                json={"to": phone, "text": msg},
+                            )
+            except Exception as e:
+                logger.error(f"Error handling trade error: {e}")
 
     async def check_signals(self, symbol: str):
         """Unified strategy evaluation and signal broadcasting."""

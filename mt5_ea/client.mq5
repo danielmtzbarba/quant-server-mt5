@@ -23,6 +23,8 @@ void PollForCommands();
 void SendOpenPositions();
 void NotifyServerPositionOpened(long ticket, string sym, long type, double vol, double price);
 void NotifyServerPositionClosed(long ticket, double profit);
+void NotifyServerTradeError(string action, string sym, int retcode);
+string GetRetcodeMessage(int retcode);
 bool PostJSON(string payload_json, string endpoint="/report", bool print_res=true);
 string ExtractJSONString(string json, string key);
 double ExtractJSONNumber(string json, string key);
@@ -145,8 +147,14 @@ void PollForCommands()
          
          if(ticket > 0) 
            {
-            trade.PositionClose(ticket);
-            Print("DEBUG [Execution]: Sent Close request for ticket.");
+            if(trade.PositionClose(ticket))
+              {
+               Print("DEBUG [Execution]: Sent Close request for ticket.");
+              }
+            else
+              {
+               NotifyServerTradeError("CLOSE", "Ticket " + (string)ticket, trade.ResultRetcode());
+              }
            }
          else 
            {
@@ -173,7 +181,14 @@ void PollForCommands()
          
          double ask = SymbolInfoDouble(sym, SYMBOL_ASK);
          Print("DEBUG [Execution]: Sending BUY command to broker...");
-         trade.Buy(vol, sym, ask, 0, 0, "API Buy");
+         if(trade.Buy(vol, sym, ask, 0, 0, "API Buy"))
+           {
+            Print("DEBUG [Execution]: Buy request sent successfully.");
+           }
+         else
+           {
+            NotifyServerTradeError("BUY", sym, trade.ResultRetcode());
+           }
          return;
         }
 
@@ -195,7 +210,14 @@ void PollForCommands()
          
          double bid = SymbolInfoDouble(sym, SYMBOL_BID);
          Print("DEBUG [Execution]: Sending SELL command to broker...");
-         trade.Sell(vol, sym, bid, 0, 0, "API Sell");
+         if(trade.Sell(vol, sym, bid, 0, 0, "API Sell"))
+           {
+            Print("DEBUG [Execution]: Sell request sent successfully.");
+           }
+         else
+           {
+            NotifyServerTradeError("SELL", sym, trade.ResultRetcode());
+           }
          return;
         }
         
@@ -258,6 +280,42 @@ void NotifyServerPositionOpened(long ticket, string sym, long type, double vol, 
    );
    StringReplace(payload, "'", CharToString(34));
    PostJSON(payload, "/position_opened", true);
+  }
+
+void NotifyServerTradeError(string action, string sym, int retcode)
+  {
+   string msg = GetRetcodeMessage(retcode);
+   string payload = StringFormat(
+      "{'action':'%s','symbol':'%s','retcode':%d,'message':'%s'}",
+      action, sym, retcode, msg
+   );
+   StringReplace(payload, "'", CharToString(34));
+   PostJSON(payload, "/trade_error", true);
+  }
+
+string GetRetcodeMessage(int retcode)
+  {
+   switch(retcode)
+     {
+      case 10004: return "Requote";
+      case 10006: return "Request Rejected";
+      case 10007: return "Request Canceled";
+      case 10008: return "Order Placed";
+      case 10009: return "Request Completed";
+      case 10013: return "Invalid Request";
+      case 10014: return "Invalid Volume";
+      case 10015: return "Invalid Price";
+      case 10016: return "Invalid Stops";
+      case 10017: return "Trade Disabled";
+      case 10018: return "Market Closed";
+      case 10019: return "Insufficient Margin (No Money)";
+      case 10020: return "Prices Changed";
+      case 10021: return "Multiple Requests";
+      case 10024: return "Order Rejected";
+      case 10025: return "Orders are restricted";
+      case 10027: return "Too Many Requests";
+      default: return "Unknown Trade Error";
+     }
   }
   
 //+------------------------------------------------------------------+

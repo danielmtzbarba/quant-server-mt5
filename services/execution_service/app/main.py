@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from services.trading_service import trading_service
 from services.sync_db_service import sync_db_service
 from common_logging import setup_logging
-from common_events import TradingSignal, PositionEvent
+from common_events import TradingSignal, PositionEvent, TradeErrorEvent
 from utils.visualization import MarketVisualizer
 
 from contextlib import asynccontextmanager
@@ -142,6 +142,16 @@ async def position_closed(event: PositionEvent, mt5_login: str = Query(...)):
         f"POST /position_closed [{mt5_login}]: Ticket {event.ticket} Profit: {event.profit}"
     )
     await trading_service.handle_position_closed(mt5_login, event)
+    return {"status": "success"}
+
+
+@app.post("/trade_error")
+async def trade_error(event: TradeErrorEvent, mt5_login: str = Query(...)):
+    """Endpoint for MT5 EA to report execution failures."""
+    logger.error(
+        f"POST /trade_error [{mt5_login}]: {event.action} {event.symbol} -> {event.message} ({event.retcode})"
+    )
+    await trading_service.handle_trade_error(mt5_login, event)
     return {"status": "success"}
 
 
