@@ -3,7 +3,6 @@ import time
 import pandas as pd
 from datetime import timedelta
 from typing import List, Dict, Any
-from fastapi import HTTPException
 from common_logging import setup_logging
 from trade_db.api import MarketDataAPI
 from utils.health import DataHealthMonitor
@@ -75,7 +74,7 @@ class SyncDBService:
 
         return {"repair": bool(formatted_gaps), "gaps": formatted_gaps}
 
-    async def upload_candles(
+    async def log_candle(
         self, symbol: str, timeframe: str, gmt_offset: int, candles: List[Dict]
     ):
         if not candles:
@@ -94,12 +93,12 @@ class SyncDBService:
         df.set_index("timestamp", inplace=True)
         df = df[["Open", "High", "Low", "Close", "Volume"]]
 
+        # Optional: We still write the single candle to InfluxDB on GCP if
+        # the GCP instance has its own local DB or wants a secondary log.
         with MarketDataAPI() as db:
             success = db.write_candles(symbol, df)
             if not success:
-                raise HTTPException(
-                    status_code=500, detail="Failed to write to InfluxDB"
-                )
+                logger.error(f"Failed to mirrored candle for {symbol} to InfluxDB.")
 
             return {"status": "success", "inserted": len(df)}
 

@@ -122,7 +122,7 @@ def mock_external_apis(mocker):
         ),
     )
     mocker.patch(
-        "services.sync_db_service.sync_db_service.upload_candles",
+        "services.sync_db_service.sync_db_service.log_candle",
         return_value={"status": "success"},
     )
     mocker.patch(

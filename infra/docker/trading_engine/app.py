@@ -11,6 +11,8 @@ from typing import Optional, List
 import uvicorn
 import traceback
 from datetime import datetime
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 
 # --- Logging Setup ---
@@ -44,7 +46,19 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 MT5_PATH = r"C:\Program Files\MetaTrader 5\terminal64.exe"
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://100.124.95.126:8002")
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://mt5-engine-azure:8002")
+
+# InfluxDB Configuration
+INFLUX_URL = os.environ.get("INFLUX_URL", "http://localhost:8086")
+INFLUX_TOKEN = os.environ.get(
+    "INFLUX_TOKEN",
+    "X3jsB_yeGU3Il5BINWNYNicYDQ7dkhjbG4PHUAN6yt9XuJHaN8Bj7ROyQr81h-Vwh3Qw6qHNMLF2wylXdaEnFQ==",
+)
+INFLUX_ORG = os.environ.get("INFLUX_ORG", "danielmtz")
+INFLUX_BUCKET = os.environ.get("INFLUX_BUCKET", "tradedb")
+
+influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 
 TRACKED_SYMBOLS = {"EURUSD", "NVDA"}
 LAST_CANDLE_TIMES = {}
@@ -178,12 +192,29 @@ async def candle_publisher():
 
                     async with httpx.AsyncClient() as client:
                         login = os.environ.get("MT5_LOGIN", "0")
-                        url = f"{BACKEND_URL}/upload_candles?mt5_login={login}"
+                        url = f"{BACKEND_URL}/log_candle?mt5_login={login}"
                         try:
+                            # 1. Write to Local InfluxDB
+                            point = (
+                                Point("market_data")
+                                .tag("symbol", symbol)
+                                .field("open", float(last_closed_bar["open"]))
+                                .field("high", float(last_closed_bar["high"]))
+                                .field("low", float(last_closed_bar["low"]))
+                                .field("close", float(last_closed_bar["close"]))
+                                .field("volume", int(last_closed_bar["tick_volume"]))
+                                .time(datetime.utcfromtimestamp(bar_time))
+                            )
+                            write_api.write(bucket=INFLUX_BUCKET, record=point)
+                            logger.info(f"Local InfluxDB updated for {symbol} at {ts}")
+
+                            # 2. Notify GCP for Signal/Strategy logic
                             await client.post(url, json=payload, timeout=5)
-                            logger.info(f"Webhook pushed: {symbol} M1 candle: {ts}")
+                            logger.info(
+                                f"Signal notification pushed to {url} for {symbol}"
+                            )
                         except Exception as e:
-                            logger.error(f"Failed to push candle to {url}: {e}")
+                            logger.error(f"Failed to process candle for {symbol}: {e}")
 
             await asyncio.sleep(1)
 
@@ -310,6 +341,44 @@ def get_history(symbol: str, count: int = 1000):
         "gmt_offset": 0,
         "candles": candles,
     }
+
+
+@app.post("/api/backfill")
+async def backfill_history(symbol: str, days: int = 7):
+    symbol = symbol.upper()
+    count = days * 1440  # M1 bars in a day
+    logger.info(f"Starting backfill for {symbol}: {days} days ({count} bars)")
+
+    rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M1, 0, count)
+    if rates is None:
+        logger.error(f"Backfill failed: Symbol {symbol} not found or no rates.")
+        raise HTTPException(status_code=404, detail="No rates found")
+
+    points = []
+    for r in rates:
+        point = (
+            Point("market_data")
+            .tag("symbol", symbol)
+            .field("open", float(r["open"]))
+            .field("high", float(r["high"]))
+            .field("low", float(r["low"]))
+            .field("close", float(r["close"]))
+            .field("volume", int(r["tick_volume"]))
+            .time(datetime.utcfromtimestamp(r["time"]))
+        )
+        points.append(point)
+
+    try:
+        # Batch write in chunks to avoid memory/timeout issues
+        chunk_size = 1000
+        for i in range(0, len(points), chunk_size):
+            write_api.write(bucket=INFLUX_BUCKET, record=points[i : i + chunk_size])
+
+        logger.info(f"Backfill SUCCESS for {symbol}. Ingested {len(points)} points.")
+        return {"status": "success", "inserted": len(points)}
+    except Exception as e:
+        logger.error(f"Failed to write backfill to InfluxDB: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # --- Execution Controller ---

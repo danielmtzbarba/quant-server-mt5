@@ -206,12 +206,12 @@ async def check_repair(symbol: str = Query(...)):
     return sync_db_service.check_repair(symbol)
 
 
-@app.post("/upload_candles")
-async def upload_candles(payload: TradeDBPayload):
-    logger.info(
-        f"POST /upload_candles: {payload.symbol} ({len(payload.candles)} candles)"
-    )
-    result = await sync_db_service.upload_candles(
+@app.post("/log_candle")
+async def log_candle(payload: TradeDBPayload):
+    logger.info(f"POST /log_candle: {payload.symbol} ({len(payload.candles)} candles)")
+    # Note: Primary storage now happens on the MT5 Engine side.
+    # log_candle is used to trigger strategy checks and log the latest tick.
+    result = await sync_db_service.log_candle(
         payload.symbol,
         payload.timeframe,
         payload.gmt_offset,
@@ -221,6 +221,31 @@ async def upload_candles(payload: TradeDBPayload):
         # Trigger strategy check
         await trading_service.check_signals(payload.symbol)
     return result
+
+
+@app.post("/backfill_all")
+async def backfill_all(days: int = 7):
+    """Trigger a full 7-day backfill for all monitored symbols on the MT5 Engine."""
+    logger.info(f"Triggering backfill for all symbols ({days} days)...")
+    import httpx
+
+    MT5_ENGINE_URL = os.environ.get("MT5_ENGINE_URL", "http://mt5-engine-azure:8000")
+    symbols = ["EURUSD", "NVDA"]
+    results = {}
+
+    async with httpx.AsyncClient() as client:
+        for symbol in symbols:
+            try:
+                resp = await client.post(
+                    f"{MT5_ENGINE_URL}/api/backfill?symbol={symbol}&days={days}",
+                    timeout=60.0,
+                )
+                results[symbol] = resp.json()
+            except Exception as e:
+                logger.error(f"Failed to trigger backfill for {symbol}: {e}")
+                results[symbol] = {"error": str(e)}
+
+    return {"status": "complete", "results": results}
 
 
 @app.post("/verify_history")

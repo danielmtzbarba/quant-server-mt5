@@ -33,7 +33,7 @@ RUN wget -q https://bootstrap.pypa.io/pip/3.8/get-pip.py && \
     rm get-pip.py
 
 # 6. Install MT5 + FastAPI + httpx
-RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install MetaTrader5 fastapi uvicorn httpx
+RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install MetaTrader5 fastapi uvicorn httpx influxdb-client
 
 
 # 7. Pull the pre-installed MT5 portable archive from GitHub Releases
