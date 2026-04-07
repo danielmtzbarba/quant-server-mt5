@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, ForeignKey, Float, BigInteger, Integer
+from sqlalchemy import String, ForeignKey, Float, BigInteger, Integer, DateTime
 from core.base import Base
 from typing import TYPE_CHECKING, List
 from datetime import datetime, timezone
@@ -39,7 +39,7 @@ class Order(Base):
     price: Mapped[float] = mapped_column(Float)
     status: Mapped[str] = mapped_column(String(20), default="PENDING")
     created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
     broker_account: Mapped["BrokerAccount"] = relationship(back_populates="orders")

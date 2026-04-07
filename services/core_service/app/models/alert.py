@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, ForeignKey, Float
+from sqlalchemy import String, ForeignKey, Float, DateTime
 from core.base import Base
 from typing import TYPE_CHECKING, List
 from datetime import datetime, timezone
@@ -18,7 +18,7 @@ class Alert(Base):
     condition: Mapped[str] = mapped_column(String(10))  # ABOVE, BELOW
     market: Mapped[str] = mapped_column(String(10))  # FX, STOCK
     created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
     user: Mapped["User"] = relationship(back_populates="alerts")
@@ -33,7 +33,7 @@ class NotificationDelivery(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id", ondelete="CASCADE"))
     delivered_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     status: Mapped[str] = mapped_column(String(20), default="SENT")
 
