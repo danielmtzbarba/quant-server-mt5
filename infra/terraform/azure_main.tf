@@ -112,6 +112,7 @@ resource "azurerm_linux_virtual_machine" "main" {
       - systemctl start docker
       - usermod -aG docker danielmtz
       - curl -fsSL https://tailscale.com/install.sh | sh
+      - tailscale up --authkey=${var.TAILSCALE_AUTH_KEY} --hostname=mt5-engine-azure
       - fallocate -l 2G /swapfile
       - chmod 600 /swapfile
       - mkswap /swapfile

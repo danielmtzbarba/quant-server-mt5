@@ -79,7 +79,8 @@ jobs:
             -var="AZURE_VM_SIZE=Standard_B2ts_v2" \
             -var="ADMIN_IP=${{ secrets.ADMIN_IP }}" \
             -var="SSH_PUBLIC_KEY=${{ secrets.GCP_SSH_PUBLIC_KEY }}" \
-            -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}"
+            -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}" \
+            -var="TAILSCALE_AUTH_KEY=${{ secrets.TAILSCALE_AUTH_KEY }}"
         working-directory: infra/terraform
 
   # ---------------------------------------------------------------------------
@@ -120,12 +121,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Get Azure VM Status
-        run: |
-            # We assume the VM is named "mt5-engine-azure" as per terraform defaults
-            # In a production setup, we'd fetch the IP from terraform output, but
-            # MagicDNS "mt5-engine-azure" will work if Tailscale is already up.
-            echo "Deploying to Azure VM..."
+      - name: Poll Target from Bastion
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.TAILSCALE_BASTION_IP }}
+          username: danielmtz
+          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          script: |
+            echo "Polling Target VM on Tailnet..."
+            timeout 300s bash -c 'while ! ping -c 1 mt5-engine-azure >/dev/null 2>&1; do echo "Waiting for MagicDNS propagation..."; sleep 10; done'
+            echo "Target is reachable via Tailscale!"
 
       - name: SSH and Restart Stack
         uses: appleboy/ssh-action@v1.0.3

@@ -43,3 +43,9 @@ variable "AZURE_VM_SIZE" {
   default     = "Standard_B2ts_v2"
 }
 
+variable "TAILSCALE_AUTH_KEY" {
+  description = "The Tailscale Auth Key to automatically join the tailnet on boot."
+  type        = string
+  sensitive   = true
+}
+
