@@ -98,27 +98,54 @@ async def test_signal_broadcast_success(exec_client: AsyncClient, mocker):
 
 
 @pytest.mark.asyncio
-async def test_mt5_poll_flow(exec_client: AsyncClient):
-    """Verify that the MT5 EA can correctly poll for commands."""
-    from services.trading_service import trading_service
+async def test_mt5_direct_execution_flow(exec_client: AsyncClient, mocker):
+    """Verify that signals trigger immediate direct HTTP calls to the MT5 Engine."""
+    mocker.patch("services.trading_service.MAX_POSITIONS", 5)
 
-    # Clear queue for this login
-    login = "DEMO-MT5"
-    while True:
-        cmd = trading_service.get_next_mt5_command(login)
-        if not cmd or cmd.get("action") == "NONE":
-            break
+    import httpx
 
-    # 1. Queue a manual command
-    trading_service.queue_mt5_command(
-        login, "BUY", ticket=123, symbol="US30", volume=0.1
-    )
+    mock_client = mocker.AsyncMock(spec=httpx.AsyncClient)
+    mock_client.__aenter__.return_value = mock_client
 
-    # 2. Poll the endpoint
-    response = await exec_client.get(f"/poll?mt5_login={login}")
+    async def execution_side_effect(url, **kwargs):
+        # 1. Handle Core Service queries (active count and subscribers)
+        if "positions/active/count" in str(url):
+            return Response(200, json={"count": 0})
+        if "subscribers" in str(url):
+            return Response(
+                200,
+                json=[
+                    {
+                        "phone_number": "123",
+                        "name": "Live Trader",
+                        "broker_accounts": [{"id": 1, "account_number": "DEMO-MT5"}],
+                    }
+                ],
+            )
+        # 2. Handle the direct MT5 Engine API call (The new Phase 2 logic)
+        if "api/order" in str(url):
+            return Response(200, json={"status": "success", "ticket": 9999123})
+
+        return Response(200, json={"status": "success"})
+
+    mock_client.get.side_effect = execution_side_effect
+    mock_client.post.side_effect = execution_side_effect
+
+    mocker.patch("services.trading_service.httpx.AsyncClient", return_value=mock_client)
+
+    signal_payload = {
+        "symbol": "XAUUSD",
+        "action": "BUY",
+        "price": 2350.50,
+        "time": "2024-04-05T12:30:00",
+    }
+
+    # Execute the signal endpoint
+    response = await exec_client.post("/signal", json=signal_payload)
+
     assert response.status_code == 200
-    assert response.json()["action"] == "BUY"
+    assert "BROADCASTED" in response.json().get("detail", "")
 
-    # 3. Poll again (should be empty for this login)
-    response = await exec_client.get(f"/poll?mt5_login={login}")
-    assert response.json()["action"] == "NONE"
+    # Verification: Ensure the MT5 Engine API was actually called once
+    called_urls = [str(call[0][0]) for call in mock_client.post.call_args_list]
+    assert any("api/order" in url for url in called_urls)

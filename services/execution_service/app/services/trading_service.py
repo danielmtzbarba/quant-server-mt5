@@ -1,5 +1,4 @@
 import httpx
-from execution_queue.queue import mt5_queue
 from trade_db.api import MarketDataAPI
 from common_logging import setup_logging
 from common_config import get_env_var
@@ -9,6 +8,7 @@ logger = setup_logging("execution-service", tag="TRADING", color="green")
 
 CORE_SERVICE_URL = get_env_var("CORE_SERVICE_URL", "http://127.0.0.1:8001")
 MESSAGING_SERVICE_URL = get_env_var("MESSAGING_SERVICE_URL", "http://127.0.0.1:8003")
+MT5_ENGINE_URL = get_env_var("MT5_ENGINE_URL", "http://100.119.34.104:8000")
 MAX_POSITIONS = int(get_env_var("MAX_POSITIONS", "5"))
 
 
@@ -16,14 +16,6 @@ class TradingService:
     def __init__(self):
         self.market_data = MarketDataAPI()
         self.last_report = []
-
-    def queue_mt5_command(self, login: str, action: str, **kwargs):
-        """Add a command to the MT5 execution queue for a specific terminal."""
-        mt5_queue.queue_command(login, action, **kwargs)
-
-    def get_next_mt5_command(self, login: str):
-        """Retrieve and remove the next command from the queue for a login."""
-        return mt5_queue.get_next(login)
 
     async def broadcast_signal(self, signal: TradingSignal) -> tuple[bool, str]:
         """Multi-tenant distribution: Sends signals only to subscribed and completed users."""
@@ -96,16 +88,40 @@ class TradingService:
                             f"{CORE_SERVICE_URL}/orders", json=order_payload
                         )
 
-                        # Queue Command for the specific login
-                        # Only the terminal polling with this login will receive it
-                        logger.info(f"Queuing TRADE for {login} ({user.get('name')})")
-                        self.queue_mt5_command(
-                            login,
-                            signal.action.upper(),
-                            symbol=symbol,
-                            volume=getattr(signal, "volume", 0.01),
-                            price=signal.price,
+                        # Instantaneous execution command directly to the specific Tailscale IP Engine
+                        logger.info(
+                            f"Executing TRADE directly on {login}'s MT5 Engine ({user.get('name')})"
                         )
+                        mt5_payload = {
+                            "action": signal.action.upper(),
+                            "symbol": symbol,
+                            "volume": getattr(signal, "volume", 0.01),
+                            "price": signal.price,
+                        }
+
+                        try:
+                            # Use internal Tailscale network layer logic for immediate fulfillment
+                            trade_resp = await client.post(
+                                f"{MT5_ENGINE_URL}/api/order",
+                                json=mt5_payload,
+                                timeout=10.0,
+                            )
+                            if trade_resp.status_code == 200:
+                                res_data = trade_resp.json()
+                                if res_data.get("status") == "success":
+                                    logger.info(
+                                        f"Trade successful! Ticket: {res_data.get('ticket')}"
+                                    )
+                                else:
+                                    logger.error(f"Trade rejected by MT5: {res_data}")
+                            else:
+                                logger.error(
+                                    f"MT5 API Failed: {trade_resp.status_code} {trade_resp.text}"
+                                )
+                        except Exception as mt5_err:
+                            logger.error(
+                                f"Network error trying to reach MT5 Engine: {mt5_err}"
+                            )
 
                 return True, "BROADCASTED"
 

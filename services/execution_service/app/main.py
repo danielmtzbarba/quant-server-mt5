@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException, Query
 import uvicorn
 import logging
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 import os
 from typing import List
@@ -25,6 +25,29 @@ async def lifespan(app: FastAPI):
         uv_logger.handlers = []
         uv_logger.propagate = False
         uv_logger.setLevel(logging.WARNING)
+
+    # Automatically provision the linked MT5 Tailscale backend to stream symbols
+    import httpx
+    import asyncio
+
+    MT5_ENGINE_URL = os.environ.get("MT5_ENGINE_URL", "http://100.119.34.104:8000")
+
+    async def configure_tracking():
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"{MT5_ENGINE_URL}/api/symbols",
+                    json=["EURUSD", "NVDA"],
+                    timeout=5.0,
+                )
+                logger.info("Successfully registered tracking symbols with MT5 Engine.")
+        except Exception as e:
+            logger.error(
+                f"Failed to reach MT5 Engine to set tracking symbols on Boot. Retrying later. {e}"
+            )
+
+    asyncio.create_task(configure_tracking())
+
     yield
     logger.info("Shutting down Execution Service...")
 
@@ -46,16 +69,6 @@ sync_db_service.start_health_monitor()
 async def health_check():
     logger.debug("GET /health")
     return {"status": "healthy"}
-
-
-@app.get("/poll")
-async def poll_commands(mt5_login: str = Query(...)):
-    """Endpoint for MT5 EA to poll for pending commands."""
-    logger.debug(f"GET /poll for {mt5_login}")
-    command = trading_service.get_next_mt5_command(mt5_login)
-    if command:
-        return JSONResponse(content=command)
-    return JSONResponse(content={"action": "NONE"})
 
 
 @app.post("/report")
@@ -91,27 +104,34 @@ async def receive_signal(signal: TradingSignal):
 
 @app.post("/close_position")
 async def close_position(ticket: int):
-    """Endpoint for agent to close a specific position."""
-    logger.info(f"POST /close_position: Ticket {ticket}")
-    trading_service.queue_mt5_command("CLOSE", ticket=ticket)
+    """Endpoint for agent to close a specific position via native MT5 push."""
+    logger.info(f"POST /close_position: Direct API Dispatch for Ticket {ticket}")
+    import httpx
+    import os
+
+    MT5_ENGINE_URL = os.environ.get("MT5_ENGINE_URL", "http://100.119.34.104:8000")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            trade_resp = await client.post(
+                f"{MT5_ENGINE_URL}/api/order",
+                json={
+                    "action": "CLOSE",
+                    "ticket": ticket,
+                    "symbol": "DUMMY",
+                },  # Symbol is now optional on MT5
+                timeout=10.0,
+            )
+            if trade_resp.status_code == 200:
+                logger.info(f"MT5 Successfully reversed Ticket {ticket}")
+            else:
+                logger.error(f"MT5 rejection on CLOSE: {trade_resp.text}")
+        except Exception as mt5_err:
+            logger.error(
+                f"Network error trying to explicitly close {ticket}: {mt5_err}"
+            )
+
     return {"status": "success"}
-
-
-@app.post("/refresh_mt5")
-async def refresh_mt5():
-    """Endpoint for agent to force a data refresh from MT5."""
-    logger.info("POST /refresh_mt5")
-    trading_service.queue_mt5_command("REPORT")
-    return {"status": "success"}
-
-
-@app.get("/commands")
-async def get_commands():
-    """Endpoint for agent to verify pending MT5 commands."""
-    logger.info("GET /commands")
-    from execution_queue.queue import mt5_queue
-
-    return {"pending": mt5_queue.get_all_pending()}
 
 
 @app.post("/position_event")
