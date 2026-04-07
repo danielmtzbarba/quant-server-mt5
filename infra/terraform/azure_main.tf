@@ -1,23 +1,23 @@
 provider "azurerm" {
   features {}
-  subscription_id = var.azure_subscription_id
-  client_id       = var.azure_client_id
-  client_secret   = var.azure_client_secret
-  tenant_id       = var.azure_tenant_id
+  subscription_id = var.AZURE_SUBSCRIPTION_ID
+  client_id       = var.AZURE_CLIENT_ID
+  client_secret   = var.AZURE_CLIENT_SECRET
+  tenant_id       = var.AZURE_TENANT_ID
 }
 
 # 1. Virtual Network
 resource "azurerm_virtual_network" "main" {
   name                = "trading-network"
   address_space       = ["10.0.0.0/16"]
-  location            = var.azure_location
-  resource_group_name = var.azure_resource_group
+  location            = var.AZURE_LOCATION
+  resource_group_name = var.AZURE_RESOURCE_GROUP
 }
 
 # 2. Subnet
 resource "azurerm_subnet" "internal" {
   name                 = "trading-subnet"
-  resource_group_name  = var.azure_resource_group
+  resource_group_name  = var.AZURE_RESOURCE_GROUP
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = ["10.0.2.0/24"]
 }
@@ -25,16 +25,16 @@ resource "azurerm_subnet" "internal" {
 # 3. Public IP (Required for SSH/Deployment from Github)
 resource "azurerm_public_ip" "main" {
   name                = "mt5-public-ip"
-  resource_group_name = var.azure_resource_group
-  location            = var.azure_location
+  resource_group_name = var.AZURE_RESOURCE_GROUP
+  location            = var.AZURE_LOCATION
   allocation_method   = "Dynamic"
 }
 
 # 4. Network Security Group (Whitelist Admin SSH only)
 resource "azurerm_network_security_group" "main" {
   name                = "trading-nsg"
-  location            = var.azure_location
-  resource_group_name = var.azure_resource_group
+  location            = var.AZURE_LOCATION
+  resource_group_name = var.AZURE_RESOURCE_GROUP
 
   security_rule {
     name                       = "SSH"
@@ -44,7 +44,7 @@ resource "azurerm_network_security_group" "main" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "22"
-    source_address_prefix      = "${var.admin_ip}/32"
+    source_address_prefix      = "${var.ADMIN_IP}/32"
     destination_address_prefix = "*"
   }
 }
@@ -52,8 +52,8 @@ resource "azurerm_network_security_group" "main" {
 # 5. Network Interface
 resource "azurerm_network_interface" "main" {
   name                = "mt5-nic"
-  location            = var.azure_location
-  resource_group_name = var.azure_resource_group
+  location            = var.AZURE_LOCATION
+  resource_group_name = var.AZURE_RESOURCE_GROUP
 
   ip_configuration {
     name                          = "internal"
@@ -70,10 +70,10 @@ resource "azurerm_network_interface_security_group_association" "main" {
 
 # 6. Linux Virtual Machine (Standard_B1s)
 resource "azurerm_linux_virtual_machine" "main" {
-  name                = var.azure_instance_name
-  resource_group_name = var.azure_resource_group
-  location            = var.azure_location
-  size                = var.azure_vm_size
+  name                = var.AZURE_INSTANCE_NAME
+  resource_group_name = var.AZURE_RESOURCE_GROUP
+  location            = var.AZURE_LOCATION
+  size                = var.AZURE_VM_SIZE
   admin_username      = "danielmtz"
 
   network_interface_ids = [
@@ -82,7 +82,7 @@ resource "azurerm_linux_virtual_machine" "main" {
 
   admin_ssh_key {
     username   = "danielmtz"
-    public_key = var.ssh_public_key
+    public_key = var.SSH_PUBLIC_KEY
   }
 
   os_disk {
@@ -117,7 +117,7 @@ resource "azurerm_linux_virtual_machine" "main" {
       - swapon /swapfile
       - echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
       - mkdir -p /app
-      - git clone ${var.github_repo_url} /app
+      - git clone ${var.GITHUB_REPO_URL} /app
       - chown -R danielmtz:danielmtz /app
     EOT
   )

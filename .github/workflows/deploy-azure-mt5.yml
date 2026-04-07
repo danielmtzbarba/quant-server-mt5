@@ -6,12 +6,7 @@ on:
     paths:
       - 'infra/docker/trading_engine/**'
       - 'infra/terraform/azure_*.tf'
-    paths-ignore:
-      - 'infra/terraform/main.tf'
-      - 'infra/terraform/variables.tf'
-      - 'services/core_service/**'
-      - 'services/messaging_service/**'
-      - '.github/workflows/ci-cd.yml'
+      - '.github/workflows/deploy-azure-mt5.yml'
   workflow_dispatch:
 
 permissions:
@@ -53,14 +48,14 @@ jobs:
       - name: Terraform Apply
         run: |
           terraform apply -auto-approve \
-            -var="azure_client_id=${{ secrets.AZURE_CLIENT_ID }}" \
-            -var="azure_client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
-            -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
-            -var="azure_tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
-            -var="azure_resource_group=${{ vars.AZURE_RESOURCE_GROUP }}" \
-            -var="admin_ip=${{ secrets.ADMIN_IP }}" \
-            -var="ssh_public_key=${{ secrets.GCP_SSH_PUBLIC_KEY }}" \
-            -var="github_repo_url=https://github.com/${{ github.repository }}"
+            -var="AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var="AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" \
+            -var="AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -var="AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" \
+            -var="AZURE_RESOURCE_GROUP=${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -var="ADMIN_IP=${{ secrets.ADMIN_IP }}" \
+            -var="SSH_PUBLIC_KEY=${{ secrets.GCP_SSH_PUBLIC_KEY }}" \
+            -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}"
         working-directory: infra/terraform
 
   # ---------------------------------------------------------------------------

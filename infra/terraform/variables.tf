@@ -27,17 +27,3 @@ variable "machine_type" {
   default     = "e2-micro"
 }
 
-variable "github_repo_url" {
-  description = "The URL of the GitHub repository to clone."
-  type        = string
-}
-
-variable "ssh_public_key" {
-  description = "SSH public key to inject into the VM for GitHub Actions deployment."
-  type        = string
-}
-
-variable "admin_ip" {
-  description = "Whitelisted IP address for restricted ports (8001-8002)."
-  type        = string
-}

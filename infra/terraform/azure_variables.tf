@@ -1,59 +1,45 @@
-variable "azure_subscription_id" {
+variable "AZURE_SUBSCRIPTION_ID" {
   description = "The Azure subscription ID."
   type        = string
 }
 
-variable "azure_client_id" {
+variable "AZURE_CLIENT_ID" {
   description = "The Azure client ID (Service Principal)."
   type        = string
 }
 
-variable "azure_client_secret" {
+variable "AZURE_CLIENT_SECRET" {
   description = "The Azure client secret (Service Principal)."
   type        = string
   sensitive   = true
 }
 
-variable "azure_tenant_id" {
+variable "AZURE_TENANT_ID" {
   description = "The Azure tenant ID."
   type        = string
 }
 
-variable "azure_resource_group" {
+variable "AZURE_RESOURCE_GROUP" {
   description = "The name of the Azure resource group."
   type        = string
   default     = "quant-trading-rg"
 }
 
-variable "azure_location" {
+variable "AZURE_LOCATION" {
   description = "The Azure region for the deployment."
   type        = string
   default     = "East US"
 }
 
-variable "azure_instance_name" {
+variable "AZURE_INSTANCE_NAME" {
   description = "The name of the Azure VM."
   type        = string
   default     = "mt5-engine-azure"
 }
 
-variable "azure_vm_size" {
+variable "AZURE_VM_SIZE" {
   description = "The size of the Azure VM."
   type        = string
   default     = "Standard_B1s"
 }
 
-variable "admin_ip" {
-  description = "Whitelisted IP address for SSH access."
-  type        = string
-}
-
-variable "ssh_public_key" {
-  description = "SSH public key to inject into the VM."
-  type        = string
-}
-
-variable "github_repo_url" {
-  description = "The URL of the GitHub repository to clone."
-  type        = string
-}
