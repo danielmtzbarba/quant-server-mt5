@@ -28,6 +28,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Remove GCP Backend for Azure Run
+        run: rm -f infra/terraform/backend.tf
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 

@@ -22,6 +22,7 @@ variable "azure_tenant_id" {
 variable "azure_resource_group" {
   description = "The name of the Azure resource group."
   type        = string
+  default     = "quant-trading-rg"
 }
 
 variable "azure_location" {
