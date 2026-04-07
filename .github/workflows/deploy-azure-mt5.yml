@@ -28,6 +28,12 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Isolating Azure Terraform
+        run: |
+          mkdir -p gcp_backup
+          mv main.tf variables.tf terraform.tfvars gcp_backup/ || true
+        working-directory: infra/terraform
+
       - name: Remove GCP Backend for Azure Run
         run: rm -f infra/terraform/backend.tf
 
