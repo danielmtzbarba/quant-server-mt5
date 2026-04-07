@@ -42,10 +42,13 @@ class BotService:
                         response_msgs.append(
                             msgs.text_message(
                                 msg.number,
-                                "¡Hola! 👋 Veo que eres nuevo. Para empezar, dime: **¿Cuál es tu nombre?**",
+                                "¡Hola! 👋 Veo que eres nuevo. Para empezar, dime: *¿Cuál es tu nombre de usuario?*",
                             )
                         )
                     else:
+                        logger.error(
+                            f"Failed to initialize signup for {msg.number}: {signup_resp.text}"
+                        )
                         response_msgs.append(
                             msgs.text_message(
                                 msg.number,
@@ -111,13 +114,17 @@ class BotService:
     async def _handle_list_commands_info(self, msg):
         commands_text = (
             "🤖 *Comandos Disponibles:*\n\n"
-            "📈 *Trading:* Ver precios, abrir/cerrar posiciones (MT5).\n"
+            "📈 *Trading:* Ver precios y operar (MT5).\n"
+            "📊 *Estrategias:* `ESTRATEGIAS` para ver opciones.\n"
+            "✅ *Suscripción:* `SUSCRIBIR [NOMBRE]` para recibir señales.\n"
             "🔔 *Alertas:* `Crear alerta EURUSD 1.0850`\n"
             "📋 *Watchlist:* Ver y gestionar tus favoritos.\n"
             "🔐 *Sistemas:* !LOGIN para acceso web.\n\n"
-            "💡 *O háblame naturalmente:* '¿Cómo va mi cuenta?' o 'Pon una alerta en Oro'."
+            "💡 *O háblame naturalmente:* '¿Cómo va mi cuenta?'"
         )
-        return msgs.buttonReply_Message(msg, ["!LOGIN"], commands_text, "Stonks Bot")
+        return msgs.buttonReply_Message(
+            msg, ["ESTRATEGIAS", "!LOGIN"], commands_text, "Stonks Bot"
+        )
 
     async def _handle_signup_step(self, msg, session, user):
         """Conversational step-by-step handler for new users."""
@@ -150,17 +157,42 @@ class BotService:
                 if resp.status_code == 200:
                     await client.patch(
                         f"{CORE_SERVICE_URL}/signup/session/{msg.number}",
-                        json={"step": "COMPLETED", "completed": True},
+                        json={"step": "ASK_PORTFOLIO_PREFS"},
                     )
                     return msgs.text_message(
                         msg.number,
-                        "✅ *¡Vínculo Exitoso!*\n\nTu terminal MT5 ha sido autorizada. Ahora puedes usar el comando *ESTRATEGIAS* para ver qué señales están disponibles.",
+                        "✅ *¡Terminal Vinculada!*\n\nÚltimo paso: ¿Qué mercados te interesa operar?\n\nResponde **FX**, **STOCKS** o **AMBOS**.",
                     )
                 else:
                     return msgs.text_message(
                         msg.number,
                         "❌ No pude vincular ese ID. Asegúrate de que sea un número válido y no esté registrado por otro usuario.",
                     )
+
+            if current_step == "ASK_PORTFOLIO_PREFS":
+                choice = msg.text.strip().upper()
+                has_fx = "FX" in choice or "AMBOS" in choice or "BOTH" in choice
+                has_stocks = "STOCK" in choice or "AMBOS" in choice or "BOTH" in choice
+
+                # Update User
+                await client.patch(
+                    f"{CORE_SERVICE_URL}/users/{msg.number}",
+                    json={
+                        "has_fx_portfolio": has_fx,
+                        "has_stock_portfolio": has_stocks,
+                    },
+                )
+
+                # Complete Session
+                await client.patch(
+                    f"{CORE_SERVICE_URL}/signup/session/{msg.number}",
+                    json={"step": "COMPLETED", "completed": True},
+                )
+
+                return msgs.text_message(
+                    msg.number,
+                    "🏁 *¡Configuración Completada!*\n\nGracias por tu información. Ahora estás listo para operar.\n\nUsa el comando **ESTRATEGIAS** para ver qué señales están disponibles.",
+                )
 
         return msgs.text_message(
             msg.number, "Lo siento, no entiendo en qué paso estamos."

@@ -163,6 +163,25 @@ async def update_signup_session(
     return session
 
 
+@app.patch("/users/{phone_number}")
+async def update_user(
+    phone_number: str, updates: dict, db: AsyncSession = Depends(get_db)
+):
+    logger.info(f"DB: PATCH User {phone_number}")
+    repo = UserRepository(db)
+    user = await repo.get_by_phone(phone_number)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    for key, value in updates.items():
+        if hasattr(user, key):
+            setattr(user, key, value)
+
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
 @app.post("/users")
 async def create_user(phone_number: str, name: str, db: AsyncSession = Depends(get_db)):
     logger.info(f"DB: CREATE User {phone_number} ({name})")

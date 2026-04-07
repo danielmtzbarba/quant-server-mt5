@@ -27,9 +27,11 @@ class TradingService:
 
     async def broadcast_signal(self, signal: TradingSignal) -> tuple[bool, str]:
         """Multi-tenant distribution: Sends signals only to subscribed and completed users."""
+        from utils.strategy import SRBounceRejection
+
         symbol = signal.symbol.upper()
         # Strategy name is derived from where the signal is coming from
-        strategy_name = "PRICE_ACTION"
+        strategy_name = SRBounceRejection.strategy_id
 
         async with httpx.AsyncClient() as client:
             try:
@@ -229,7 +231,7 @@ class TradingService:
         """Unified strategy evaluation and signal broadcasting."""
         try:
             from utils.indicators import PriceActionIndicators as Indicators
-            from utils.strategy import PriceActionStrategy as Strategy
+            from utils.strategy import SRBounceRejection as Strategy
             from utils.trading_utils import filter_last_trading_days
 
             # 1. Over-fetch (e.g. 7 days) to ensure we find at least 3 trading sessions

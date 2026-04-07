@@ -8,7 +8,7 @@ from common_logging import setup_logging
 from trade_db.api import MarketDataAPI
 from utils.health import DataHealthMonitor
 from utils.indicators import PriceActionIndicators as Indicators
-from utils.strategy import PriceActionStrategy as Strategy
+from utils.strategy import SRBounceRejection as Strategy
 
 logger = setup_logging("execution-service", tag="SYNC", color="blue")
 

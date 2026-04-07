@@ -245,7 +245,7 @@ void SendOpenPositions()
   
 void NotifyServerPositionClosed(long ticket, double profit)
   {
-   string payload = StringFormat("{'ticket':%I64d,'action':'CLOSED','profit':%.2f}", ticket, profit);
+   string payload = StringFormat("{'ticket':%I64d,'status':'CLOSED','profit':%.2f}", ticket, profit);
    StringReplace(payload, "'", CharToString(34));
    PostJSON(payload, "/position_closed", true);
   }
@@ -253,7 +253,7 @@ void NotifyServerPositionClosed(long ticket, double profit)
 void NotifyServerPositionOpened(long ticket, string sym, long type, double vol, double price)
   {
    string payload = StringFormat(
-      "{'ticket':%I64d,'action':'OPENED','symbol':'%s','type':%d,'volume':%.2f,'price':%.5f}",
+      "{'ticket':%I64d,'status':'OPENED','symbol':'%s','type':%d,'volume':%.2f,'price':%.5f}",
       ticket, sym, (int)type, vol, price
    );
    StringReplace(payload, "'", CharToString(34));

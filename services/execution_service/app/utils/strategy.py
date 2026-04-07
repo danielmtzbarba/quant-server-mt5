@@ -4,11 +4,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class PriceActionStrategy:
+class SRBounceRejection:
     """
     Evaluates market data against predefined mathematical conditions
     to generate actionable Buy (1) and Sell (-1) signals, along with risk levels.
     """
+
+    strategy_id = "SR_BOUNCE_REJECTION"
+    description = "Trading based on support/resistance rejection and ATR bounce zones."
 
     @staticmethod
     def bounce_rejection(

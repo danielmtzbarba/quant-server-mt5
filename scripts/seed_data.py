@@ -21,8 +21,8 @@ async def seed():
         # 1. Seed Strategies
         strategies = [
             {
-                "name": "SR_REJECTION",
-                "description": "Trading based on support/resistance and ATR.",
+                "name": "SR_BOUNCE_REJECTION",
+                "description": "Trading based on support/resistance rejection and ATR bounce zones.",
             },
         ]
 
