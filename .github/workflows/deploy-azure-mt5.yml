@@ -76,7 +76,7 @@ jobs:
             -var="AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" \
             -var="AZURE_RESOURCE_GROUP=${{ vars.AZURE_RESOURCE_GROUP }}" \
             -var="AZURE_LOCATION=westeurope" \
-            -var="AZURE_VM_SIZE=Standard_B2s" \
+            -var="AZURE_VM_SIZE=Standard_B2ts_v2" \
             -var="ADMIN_IP=${{ secrets.ADMIN_IP }}" \
             -var="SSH_PUBLIC_KEY=${{ secrets.GCP_SSH_PUBLIC_KEY }}" \
             -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}"

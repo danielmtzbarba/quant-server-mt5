@@ -40,6 +40,6 @@ variable "AZURE_INSTANCE_NAME" {
 variable "AZURE_VM_SIZE" {
   description = "The size of the Azure VM."
   type        = string
-  default     = "Standard_B2s"
+  default     = "Standard_B2ts_v2"
 }
 

@@ -162,7 +162,7 @@ jobs:
       - name: Isolating GCP Terraform
         run: |
           # Remove Azure-specific files for this GCP run
-          rm -f azure_main.tf azure_variables.tf
+          rm -f azure_main.tf azure_variables.tf azure_backend.tf
         working-directory: infra/terraform
 
       - name: Terraform Init
