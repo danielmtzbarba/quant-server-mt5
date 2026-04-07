@@ -2,7 +2,7 @@ from .user import User
 from .alert import Alert, NotificationDelivery
 from .auth import LoginToken, SignupSession
 from .watchlist import WatchlistItem, PortfolioItem
-from .trading import BrokerAccount, Order, Position
+from .trading import BrokerAccount, Order, Position, Strategy, UserStrategy
 
 __all__ = [
     "User",
@@ -14,5 +14,7 @@ __all__ = [
     "BrokerAccount",
     "Order",
     "Position",
+    "Strategy",
+    "UserStrategy",
     "SignupSession",
 ]

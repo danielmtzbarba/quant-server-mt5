@@ -19,6 +19,16 @@ async def test_trade_gating_max_positions(exec_client: AsyncClient, mocker):
     async def gating_side_effect(url, **kwargs):
         if "positions/active/count" in str(url):
             return Response(200, json={"count": 5})  # Equal to Max
+        if "subscribers" in str(url):
+            return Response(
+                200,
+                json=[
+                    {
+                        "phone_number": "123456",
+                        "broker_accounts": [{"id": 1, "account_number": "DEMO-MT5"}],
+                    }
+                ],
+            )
         return Response(200, json={"status": "success"})
 
     mock_client.get.side_effect = gating_side_effect
@@ -37,7 +47,7 @@ async def test_trade_gating_max_positions(exec_client: AsyncClient, mocker):
 
     # 4. Assert that the request was GATED (429 Status)
     assert response.status_code == 429
-    assert "limit reached" in response.json().get("detail", "")
+    assert "position limit reached" in response.json().get("detail", "").lower()
 
 
 @pytest.mark.asyncio
@@ -53,6 +63,17 @@ async def test_signal_broadcast_success(exec_client: AsyncClient, mocker):
     async def success_side_effect(url, **kwargs):
         if "positions/active/count" in str(url):
             return Response(200, json={"count": 2})  # Under limit
+        if "subscribers" in str(url):
+            return Response(
+                200,
+                json=[
+                    {
+                        "phone_number": "123456",
+                        "name": "Test User",
+                        "broker_accounts": [{"id": 1, "account_number": "DEMO-MT5"}],
+                    }
+                ],
+            )
         return Response(200, json={"status": "success"})
 
     mock_client.get.side_effect = success_side_effect
@@ -69,8 +90,8 @@ async def test_signal_broadcast_success(exec_client: AsyncClient, mocker):
 
     response = await exec_client.post("/signal", json=signal_payload)
     assert response.status_code == 200
-    # Detail is "QUEUED" by default in success flow
-    assert "QUEUED" in response.json().get("detail", "")
+    # Detail is "BROADCASTED" in the new multi-tenant flow
+    assert "BROADCASTED" in response.json().get("detail", "")
 
 
 # --- MT5 Interaction Tests ---
@@ -81,20 +102,23 @@ async def test_mt5_poll_flow(exec_client: AsyncClient):
     """Verify that the MT5 EA can correctly poll for commands."""
     from services.trading_service import trading_service
 
-    # Clear queue
+    # Clear queue for this login
+    login = "DEMO-MT5"
     while True:
-        cmd = trading_service.get_next_mt5_command()
+        cmd = trading_service.get_next_mt5_command(login)
         if not cmd or cmd.get("action") == "NONE":
             break
 
     # 1. Queue a manual command
-    trading_service.queue_mt5_command("BUY", ticket=123, symbol="US30", volume=0.1)
+    trading_service.queue_mt5_command(
+        login, "BUY", ticket=123, symbol="US30", volume=0.1
+    )
 
     # 2. Poll the endpoint
-    response = await exec_client.get("/poll")
+    response = await exec_client.get(f"/poll?mt5_login={login}")
     assert response.status_code == 200
     assert response.json()["action"] == "BUY"
 
-    # 3. Poll again (should be empty)
-    response = await exec_client.get("/poll")
+    # 3. Poll again (should be empty for this login)
+    response = await exec_client.get(f"/poll?mt5_login={login}")
     assert response.json()["action"] == "NONE"

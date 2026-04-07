@@ -49,23 +49,23 @@ async def health_check():
 
 
 @app.get("/poll")
-async def poll_commands():
+async def poll_commands(mt5_login: str = Query(...)):
     """Endpoint for MT5 EA to poll for pending commands."""
-    logger.debug("GET /poll")
-    command = trading_service.get_next_mt5_command()
+    logger.debug(f"GET /poll for {mt5_login}")
+    command = trading_service.get_next_mt5_command(mt5_login)
     if command:
-        # EA expects uppercase keys if possible, but our ExecutionRequest is fine.
-        # However, it specifically checks for "action".
         return JSONResponse(content=command)
     return JSONResponse(content={"action": "NONE"})
 
 
 @app.post("/report")
-async def receive_report(request: Request):
+async def receive_report(request: Request, mt5_login: str = Query(...)):
     """Endpoint for MT5 EA to send full position/account reports."""
     payload = await request.json()
-    logger.info(f"POST /report: {len(payload.get('positions', []))} positions")
-    await trading_service.handle_report(payload.get("positions", []))
+    logger.info(
+        f"POST /report from {mt5_login}: {len(payload.get('positions', []))} positions"
+    )
+    await trading_service.handle_report(mt5_login, payload.get("positions", []))
     return {"status": "success"}
 
 
@@ -115,29 +115,33 @@ async def get_commands():
 
 
 @app.post("/position_event")
-async def position_event(event: PositionEvent):
+async def position_event(event: PositionEvent, mt5_login: str = Query(...)):
     """General endpoint for position lifecycle events."""
-    logger.info(f"POST /position_event: {event.status} {event.ticket}")
+    logger.info(f"POST /position_event [{mt5_login}]: {event.status} {event.ticket}")
     if event.status == "OPENED":
-        await trading_service.handle_position_opened(event)
+        await trading_service.handle_position_opened(mt5_login, event)
     elif event.status == "CLOSED":
-        await trading_service.handle_position_closed(event)
+        await trading_service.handle_position_closed(mt5_login, event)
     return {"status": "success"}
 
 
 @app.post("/position_opened")
-async def position_opened(event: PositionEvent):
+async def position_opened(event: PositionEvent, mt5_login: str = Query(...)):
     """Dedicated endpoint for MT5 EA 'OPENED' notification."""
-    logger.info(f"POST /position_opened: Ticket {event.ticket} {event.symbol}")
-    await trading_service.handle_position_opened(event)
+    logger.info(
+        f"POST /position_opened [{mt5_login}]: Ticket {event.ticket} {event.symbol}"
+    )
+    await trading_service.handle_position_opened(mt5_login, event)
     return {"status": "success"}
 
 
 @app.post("/position_closed")
-async def position_closed(event: PositionEvent):
+async def position_closed(event: PositionEvent, mt5_login: str = Query(...)):
     """Dedicated endpoint for MT5 EA 'CLOSED' notification."""
-    logger.info(f"POST /position_closed: Ticket {event.ticket} Profit: {event.profit}")
-    await trading_service.handle_position_closed(event)
+    logger.info(
+        f"POST /position_closed [{mt5_login}]: Ticket {event.ticket} Profit: {event.profit}"
+    )
+    await trading_service.handle_position_closed(mt5_login, event)
     return {"status": "success"}
 
 

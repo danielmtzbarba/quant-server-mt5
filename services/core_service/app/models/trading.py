@@ -8,6 +8,33 @@ if TYPE_CHECKING:
     from .user import User
 
 
+class UserStrategy(Base):
+    __tablename__ = "user_strategies"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    strategy_id: Mapped[int] = mapped_column(
+        ForeignKey("strategies.id", ondelete="CASCADE"), primary_key=True
+    )
+    subscribed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class Strategy(Base):
+    __tablename__ = "strategies"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(50), unique=True)
+    description: Mapped[str | None] = mapped_column(String(200))
+
+    users: Mapped[List["User"]] = relationship(
+        secondary="user_strategies", back_populates="subscribed_strategies"
+    )
+    orders: Mapped[List["Order"]] = relationship(back_populates="strategy")
+
+
 class BrokerAccount(Base):
     __tablename__ = "broker_accounts"
 
@@ -38,11 +65,15 @@ class Order(Base):
     quantity: Mapped[float] = mapped_column(Float)
     price: Mapped[float] = mapped_column(Float)
     status: Mapped[str] = mapped_column(String(20), default="PENDING")
+    strategy_id: Mapped[int | None] = mapped_column(
+        ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
     broker_account: Mapped["BrokerAccount"] = relationship(back_populates="orders")
+    strategy: Mapped["Strategy"] = relationship(back_populates="orders")
 
 
 class Position(Base):

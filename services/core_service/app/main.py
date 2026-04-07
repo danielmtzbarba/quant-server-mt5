@@ -118,7 +118,7 @@ async def signup_init(phone_number: str, db: AsyncSession = Depends(get_db)):
 
     try:
         await db.commit()
-        logger.info(f"DB: Signup records for {phone_number} synchronized successfully.")
+        logger.info(f"DB: Signup records for {phone_number} initialized.")
     except Exception as e:
         await db.rollback()
         logger.error(f"DB: Atomic signup failure for {phone_number}: {e}")
@@ -127,6 +127,40 @@ async def signup_init(phone_number: str, db: AsyncSession = Depends(get_db)):
         )
 
     return user
+
+
+@app.get("/signup/session/{phone_number}")
+async def get_signup_session(phone_number: str, db: AsyncSession = Depends(get_db)):
+    from models.auth import SignupSession
+
+    result = await db.execute(
+        select(SignupSession).where(SignupSession.phone_number == phone_number)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Signup session not found")
+    return session
+
+
+@app.patch("/signup/session/{phone_number}")
+async def update_signup_session(
+    phone_number: str, updates: dict, db: AsyncSession = Depends(get_db)
+):
+    from models.auth import SignupSession
+
+    result = await db.execute(
+        select(SignupSession).where(SignupSession.phone_number == phone_number)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Signup session not found")
+
+    for key, value in updates.items():
+        if hasattr(session, key):
+            setattr(session, key, value)
+
+    await db.commit()
+    return session
 
 
 @app.post("/users")
@@ -222,6 +256,25 @@ async def delete_alert(alert_id: int, user_id: int, db: AsyncSession = Depends(g
 # --- Account & User Mapping ---
 
 
+@app.get("/accounts/verify/{account_number}")
+async def verify_account(account_number: str, db: AsyncSession = Depends(get_db)):
+    """Used by MT5 EA to verify if the current terminal is registered/authorized."""
+    from models.trading import BrokerAccount
+    from models.user import User
+
+    result = await db.execute(
+        select(BrokerAccount)
+        .join(User)
+        .where(BrokerAccount.account_number == account_number)
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        logger.warning(f"DB: Verification FAILED for account {account_number}")
+        raise HTTPException(status_code=404, detail="Broker account not found")
+
+    return account
+
+
 @app.get("/accounts/{account_id}/user")
 async def get_account_user(account_id: int, db: AsyncSession = Depends(get_db)):
     from sqlalchemy import select
@@ -237,6 +290,96 @@ async def get_account_user(account_id: int, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Account or User not found")
     return user
+
+
+@app.post("/broker_accounts")
+async def create_broker_account(
+    user_id: int,
+    account_number: str,
+    broker_name: str,
+    account_type: str = "MT5",
+    db: AsyncSession = Depends(get_db),
+):
+    from models.trading import BrokerAccount
+
+    # Check if exists
+    existing = await db.execute(
+        select(BrokerAccount).where(BrokerAccount.account_number == account_number)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Account number already registered")
+
+    account = BrokerAccount(
+        user_id=user_id,
+        account_number=account_number,
+        broker_name=broker_name,
+        account_type=account_type,
+    )
+    db.add(account)
+    await db.commit()
+    await db.refresh(account)
+    return account
+
+
+# --- Strategy & Subscriptions ---
+
+
+@app.get("/strategies")
+async def list_strategies(db: AsyncSession = Depends(get_db)):
+    from models.trading import Strategy
+
+    result = await db.execute(select(Strategy))
+    return result.scalars().all()
+
+
+@app.post("/strategies/{strategy_name}/subscribe")
+async def subscribe_to_strategy(
+    strategy_name: str, user_id: int, db: AsyncSession = Depends(get_db)
+):
+    from models.trading import Strategy, UserStrategy
+
+    # 1. Get Strategy
+    s_result = await db.execute(
+        select(Strategy).where(Strategy.name == strategy_name.upper())
+    )
+    strategy = s_result.scalar_one_or_none()
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+
+    # 2. Check if already subscribed
+    sub_result = await db.execute(
+        select(UserStrategy).where(
+            UserStrategy.user_id == user_id, UserStrategy.strategy_id == strategy.id
+        )
+    )
+    if sub_result.scalar_one_or_none():
+        return {"status": "already_subscribed"}
+
+    # 3. Add subscription
+    sub = UserStrategy(user_id=user_id, strategy_id=strategy.id)
+    db.add(sub)
+    await db.commit()
+    return {"status": "success"}
+
+
+@app.get("/strategies/{strategy_name}/subscribers")
+async def get_strategy_subscribers(
+    strategy_name: str, db: AsyncSession = Depends(get_db)
+):
+    from models.trading import Strategy
+    from models.user import User
+    from models.auth import SignupSession
+    from sqlalchemy.orm import selectinload
+
+    result = await db.execute(
+        select(User)
+        .join(User.subscribed_strategies)
+        .join(SignupSession, User.phone_number == SignupSession.phone_number)
+        .where(Strategy.name == strategy_name.upper())
+        .where(SignupSession.completed.is_(True))
+        .options(selectinload(User.broker_accounts))
+    )
+    return result.scalars().all()
 
 
 # --- Order & Execution State ---

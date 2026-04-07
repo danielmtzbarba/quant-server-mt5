@@ -17,88 +17,150 @@ class TradingService:
         self.market_data = MarketDataAPI()
         self.last_report = []
 
-    def queue_mt5_command(self, action: str, **kwargs):
-        """Add a command to the MT5 execution queue."""
-        mt5_queue.queue_command(action, **kwargs)
+    def queue_mt5_command(self, login: str, action: str, **kwargs):
+        """Add a command to the MT5 execution queue for a specific terminal."""
+        mt5_queue.queue_command(login, action, **kwargs)
 
-    def get_next_mt5_command(self):
-        """Retrieve and remove the next command from the queue."""
-        return mt5_queue.get_next()
+    def get_next_mt5_command(self, login: str):
+        """Retrieve and remove the next command from the queue for a login."""
+        return mt5_queue.get_next(login)
 
     async def broadcast_signal(self, signal: TradingSignal) -> tuple[bool, str]:
-        """Standard flow for all signals (Automated or Manual)."""
+        """Multi-tenant distribution: Sends signals only to subscribed and completed users."""
         symbol = signal.symbol.upper()
+        # Strategy name is derived from where the signal is coming from
+        strategy_name = "PRICE_ACTION"
 
         async with httpx.AsyncClient() as client:
             try:
-                # 1. Gatekeeper: Check max positions
+                # 0. Gatekeeper: Check max global positions
                 count_resp = await client.get(
                     f"{CORE_SERVICE_URL}/positions/active/count"
                 )
                 if count_resp.status_code == 200:
                     current_count = count_resp.json().get("count", 0)
                     if current_count >= MAX_POSITIONS:
-                        msg = f"GATED: Max positions reached ({current_count}/{MAX_POSITIONS}). Skipping {symbol}"
-                        logger.warning(msg)
+                        logger.warning(
+                            f"GATING: Max positions reached ({current_count}/{MAX_POSITIONS}). Skipping {symbol}"
+                        )
                         return False, "MAX_POSITIONS_REACHED"
 
-                # 2. Create PENDING Order in DB
-                import time
+                # 1. Fetch Subscribed and COMPLETED Users
+                sub_resp = await client.get(
+                    f"{CORE_SERVICE_URL}/strategies/{strategy_name}/subscribers"
+                )
+                if sub_resp.status_code != 200:
+                    logger.error(f"Failed to fetch subscribers: {sub_resp.text}")
+                    return False, "FETCH_SUBSCRIBERS_FAILED"
 
-                order_id = int(time.time() * 1000)
-                order_payload = {
-                    "id": order_id,
-                    "broker_account_id": 1,  # Default
-                    "symbol": symbol,
-                    "action": signal.action.upper(),
-                    "quantity": getattr(signal, "volume", 0.01),
-                    "price": signal.price,
-                    "status": "PENDING",
-                }
-                await client.post(f"{CORE_SERVICE_URL}/orders", json=order_payload)
-
-                # 3. Queue MT5 Command
-                logger.info(f"Queuing MT5 {signal.action} for {symbol}")
-                self.queue_mt5_command(
-                    signal.action.upper(),
-                    symbol=symbol,
-                    volume=getattr(signal, "volume", 0.01),
-                    price=signal.price,
-                    sl=signal.sl,
-                    tp=signal.tp,
+                subscribers = sub_resp.json()
+                logger.info(
+                    f"Broadcasting {strategy_name} signal for {symbol} to {len(subscribers)} subscribers"
                 )
 
-                return True, "QUEUED"
+                for user in subscribers:
+                    # 1. Notify via WhatsApp
+                    phone = user.get("phone_number")
+                    if phone:
+                        msg = (
+                            f"📈 *SIGNAL: {signal.action} {symbol}*\n"
+                            f"Price: {signal.price:.5f}\n\n"
+                            f"_Tu terminal autorizada procesará esta orden automáticamente._"
+                        )
+                        await client.post(
+                            f"{MESSAGING_SERVICE_URL}/send",
+                            json={"to": phone, "text": msg},
+                        )
+
+                    # 2. Iterate and authorize broker accounts
+                    for acc in user.get("broker_accounts", []):
+                        acc_id = acc["id"]
+                        login = acc["account_number"]
+
+                        # Create PENDING Order in DB linked to this account
+                        import time
+
+                        order_id = int(time.time() * 1000)
+                        order_payload = {
+                            "id": order_id,
+                            "broker_account_id": acc_id,
+                            "symbol": symbol,
+                            "action": signal.action.upper(),
+                            "quantity": getattr(signal, "volume", 0.01),
+                            "price": signal.price,
+                            "status": "PENDING",
+                        }
+                        await client.post(
+                            f"{CORE_SERVICE_URL}/orders", json=order_payload
+                        )
+
+                        # Queue Command for the specific login
+                        # Only the terminal polling with this login will receive it
+                        logger.info(f"Queuing TRADE for {login} ({user.get('name')})")
+                        self.queue_mt5_command(
+                            login,
+                            signal.action.upper(),
+                            symbol=symbol,
+                            volume=getattr(signal, "volume", 0.01),
+                            price=signal.price,
+                        )
+
+                return True, "BROADCASTED"
 
             except Exception as e:
                 logger.error(f"Error in broadcast_signal flow: {e}")
                 return False, str(e)
 
-    async def handle_report(self, positions_data: list):
-        """Process MT5 position report and update core service."""
+    async def handle_report(self, mt5_login: str, positions_data: list):
+        """Process MT5 position report and update core service for specific login."""
         self.last_report = positions_data
-        logger.info(f"Processing MT5 report: {len(positions_data)} positions")
+        logger.info(
+            f"Processing MT5 report for {mt5_login}: {len(positions_data)} positions"
+        )
         async with httpx.AsyncClient() as client:
             try:
-                logger.info("Server ➔ DB: SYNC Positions")
-                # Using account_id=1 as default for local dev
+                # Resolve account_id from mt5_login
+                acc_resp = await client.get(
+                    f"{CORE_SERVICE_URL}/accounts/verify/{mt5_login}"
+                )
+                if acc_resp.status_code == 404:
+                    logger.warning(
+                        f"UNAUTHORIZED TERMINAL: Login {mt5_login} not found in DB."
+                    )
+                    return
+
+                account_id = acc_resp.json()["id"]
+                logger.info(f"Server ➔ DB: SYNC Positions (Account {account_id})")
                 await client.post(
                     f"{CORE_SERVICE_URL}/positions/sync",
-                    params={"account_id": 1},
+                    params={"account_id": account_id},
                     json=positions_data,
                 )
             except Exception as e:
-                logger.error(f"Error syncing report: {e}")
+                logger.error(f"Error syncing report for {mt5_login}: {e}")
 
-    async def handle_position_opened(self, event: PositionEvent):
-        """Handle real-time notification of a new position."""
-        logger.info(f"Server ➔ DB: CREATE Position {event.ticket} {event.symbol}")
+    async def handle_position_opened(self, mt5_login: str, event: PositionEvent):
+        """Handle real-time notification of a new position for a specific login."""
+        logger.info(
+            f"Server ➔ DB: CREATE Position {event.ticket} {event.symbol} for {mt5_login}"
+        )
         async with httpx.AsyncClient() as client:
             try:
+                # 1. Resolve Account
+                acc_resp = await client.get(
+                    f"{CORE_SERVICE_URL}/accounts/verify/{mt5_login}"
+                )
+                if acc_resp.status_code == 404:
+                    return
+
+                account_id = acc_resp.json()["id"]
+                user_id = acc_resp.json()["user_id"]
+
                 await client.post(
                     f"{CORE_SERVICE_URL}/positions/open",
                     json={
                         "ticket": event.ticket,
+                        "broker_account_id": account_id,
                         "symbol": event.symbol,
                         "volume": event.volume,
                         "price": event.price,
@@ -106,18 +168,12 @@ class TradingService:
                     },
                 )
                 # 2. Notify user for confirmation
-                user_resp = await client.get(f"{CORE_SERVICE_URL}/accounts/1/user")
+                user_resp = await client.get(f"{CORE_SERVICE_URL}/users/{user_id}")
                 if user_resp.status_code == 200:
                     user = user_resp.json()
                     phone = user.get("phone_number")
                     if phone:
-                        side = (
-                            "BUY"
-                            if event.type == 0
-                            else "SELL"
-                            if event.type == 1
-                            else "TRADE"
-                        )
+                        side = "BUY" if event.type == 0 else "SELL"
                         msg = (
                             f"✅ *TRADE OPENED*\n\n"
                             f"Ticket: {event.ticket}\n"
@@ -132,33 +188,40 @@ class TradingService:
             except Exception as e:
                 logger.error(f"Error handling opened position: {e}")
 
-    async def handle_position_closed(self, event: PositionEvent):
-        """Handle real-time notification of a closed position."""
+    async def handle_position_closed(self, mt5_login: str, event: PositionEvent):
+        """Handle real-time notification of a closed position for a specific login."""
         logger.info(
             f"Server ➔ DB: UPDATE Position {event.ticket} (CLOSED) Profit: {event.profit}"
         )
         async with httpx.AsyncClient() as client:
             try:
+                # Simply update based on ticket (ticket is global to MT5)
                 await client.post(
                     f"{CORE_SERVICE_URL}/positions/close",
                     params={"ticket": event.ticket, "profit": event.profit or 0.0},
                 )
-                # 2. Notify user for confirmation
-                user_resp = await client.get(f"{CORE_SERVICE_URL}/accounts/1/user")
-                if user_resp.status_code == 200:
-                    user = user_resp.json()
-                    phone = user.get("phone_number")
-                    if phone:
-                        msg = (
-                            f"🏁 *TRADE CLOSED*\n\n"
-                            f"Ticket: {event.ticket}\n"
-                            f"Symbol: {event.symbol or 'UNK'}\n"
-                            f"Profit: ${event.profit:.2f}"
-                        )
-                        await client.post(
-                            f"{MESSAGING_SERVICE_URL}/send",
-                            json={"to": phone, "text": msg},
-                        )
+
+                # Get user for notification
+                acc_resp = await client.get(
+                    f"{CORE_SERVICE_URL}/accounts/verify/{mt5_login}"
+                )
+                if acc_resp.status_code == 200:
+                    user_id = acc_resp.json()["user_id"]
+                    user_resp = await client.get(f"{CORE_SERVICE_URL}/users/{user_id}")
+                    if user_resp.status_code == 200:
+                        user = user_resp.json()
+                        phone = user.get("phone_number")
+                        if phone:
+                            msg = (
+                                f"🏁 *TRADE CLOSED*\n\n"
+                                f"Ticket: {event.ticket}\n"
+                                f"Symbol: {event.symbol or 'UNK'}\n"
+                                f"Profit: ${event.profit:.2f}"
+                            )
+                            await client.post(
+                                f"{MESSAGING_SERVICE_URL}/send",
+                                json={"to": phone, "text": msg},
+                            )
             except Exception as e:
                 logger.error(f"Error handling closed position: {e}")
 

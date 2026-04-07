@@ -17,6 +17,8 @@ class BotService:
             "COMANDOS": self._handle_list_commands_info,
             "LISTAR COMANDOS": self._handle_list_commands_info,
             "!LOGIN": self._handle_login,
+            "ESTRATEGIAS": self._handle_list_strategies,
+            "SUSCRIBIR": self._handle_subscribe,
         }
 
     async def process_request(self, msg):
@@ -40,25 +42,32 @@ class BotService:
                         response_msgs.append(
                             msgs.text_message(
                                 msg.number,
-                                "¡Hola! 👋 Te he registrado automáticamente. ¡Ya puedes empezar!",
+                                "¡Hola! 👋 Veo que eres nuevo. Para empezar, dime: **¿Cuál es tu nombre?**",
                             )
                         )
                     else:
-                        logger.error(
-                            f"Failed to initialize signup for {msg.number}: {signup_resp.text}"
-                        )
                         response_msgs.append(
                             msgs.text_message(
                                 msg.number,
-                                "Lo siento, hubo un error técnico al registrarte. Por favor intenta de nuevo más tarde.",
+                                "Lo siento, hubo un error técnico al registrarte.",
                             )
                         )
-
                     whatsapp_service.send_messages(response_msgs)
                     return
 
-                # Fetch user data (Ensures registration completion)
-                resp.json()
+                user = resp.json()
+
+                # 2. Check Signup Session state
+                session_resp = await client.get(
+                    f"{CORE_SERVICE_URL}/signup/session/{msg.number}"
+                )
+                if session_resp.status_code == 200:
+                    session = session_resp.json()
+                    if not session.get("completed"):
+                        result = await self._handle_signup_step(msg, session, user)
+                        response_msgs.append(result)
+                        whatsapp_service.send_messages(response_msgs)
+                        return
 
             cleaned_text = msg.text.strip().upper()
             found_command = False
@@ -109,6 +118,99 @@ class BotService:
             "💡 *O háblame naturalmente:* '¿Cómo va mi cuenta?' o 'Pon una alerta en Oro'."
         )
         return msgs.buttonReply_Message(msg, ["!LOGIN"], commands_text, "Stonks Bot")
+
+    async def _handle_signup_step(self, msg, session, user):
+        """Conversational step-by-step handler for new users."""
+        async with httpx.AsyncClient() as client:
+            current_step = session.get("step")
+
+            if current_step == "ASK_NAME":
+                name = msg.text.strip()
+                await client.patch(
+                    f"{CORE_SERVICE_URL}/signup/session/{msg.number}",
+                    json={"name": name, "step": "ASK_BROKER_ID"},
+                )
+                return msgs.text_message(
+                    msg.number,
+                    f"¡Mucho gusto, *{name}*! 👋\n\nAhora, por favor ingresa tu **ID de cuenta de MetaTrader 5** (el número de login) para vincular tu terminal.",
+                )
+
+            if current_step == "ASK_BROKER_ID":
+                broker_id = msg.text.strip()
+                # Create broker account
+                resp = await client.post(
+                    f"{CORE_SERVICE_URL}/broker_accounts",
+                    params={
+                        "user_id": user["id"],
+                        "account_number": broker_id,
+                        "broker_name": "MetaTrader 5",
+                        "account_type": "MT5",
+                    },
+                )
+                if resp.status_code == 200:
+                    await client.patch(
+                        f"{CORE_SERVICE_URL}/signup/session/{msg.number}",
+                        json={"step": "COMPLETED", "completed": True},
+                    )
+                    return msgs.text_message(
+                        msg.number,
+                        "✅ *¡Vínculo Exitoso!*\n\nTu terminal MT5 ha sido autorizada. Ahora puedes usar el comando *ESTRATEGIAS* para ver qué señales están disponibles.",
+                    )
+                else:
+                    return msgs.text_message(
+                        msg.number,
+                        "❌ No pude vincular ese ID. Asegúrate de que sea un número válido y no esté registrado por otro usuario.",
+                    )
+
+        return msgs.text_message(
+            msg.number, "Lo siento, no entiendo en qué paso estamos."
+        )
+
+    async def _handle_list_strategies(self, msg):
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{CORE_SERVICE_URL}/strategies")
+            if resp.status_code == 200:
+                strategies = resp.json()
+                if not strategies:
+                    return msgs.text_message(msg.number, "No hay estrategias activas.")
+
+                text = "📊 *Estrategias Disponibles:*\n\n"
+                options = []
+                for s in strategies:
+                    text += f"• *{s['name']}*: {s['description']}\n"
+                    options.append(f"SUSCRIBIR {s['name']}")
+
+                return msgs.buttonReply_Message(
+                    msg, options[:3], text, "Trading Center"
+                )
+        return msgs.text_message(msg.number, "Error al obtener estrategias.")
+
+    async def _handle_subscribe(self, msg):
+        async with httpx.AsyncClient() as client:
+            # Extract strategy name from "!SUSCRIBIR NAME" or similar
+            parts = msg.text.strip().split()
+            if len(parts) < 2:
+                return msgs.text_message(
+                    msg.number, "Uso: `SUSCRIBIR [NOMBRE_ESTRATEGIA]`"
+                )
+
+            strategy_name = parts[1].upper()
+            # Need user_id, which we should have fetched in process_request
+            # For simplicity here, we'll re-fetch or pass it
+            user_resp = await client.get(f"{CORE_SERVICE_URL}/users/{msg.number}")
+            user_id = user_resp.json()["id"]
+
+            resp = await client.post(
+                f"{CORE_SERVICE_URL}/strategies/{strategy_name}/subscribe",
+                params={"user_id": user_id},
+            )
+            if resp.status_code == 200:
+                return msgs.text_message(
+                    msg.number, f"✅ Te has suscrito con éxito a *{strategy_name}*."
+                )
+            return msgs.text_message(
+                msg.number, f"No pude suscribirte a {strategy_name}."
+            )
 
     async def _handle_login(self, msg):
         # Redirect to portfolio login handled by core service

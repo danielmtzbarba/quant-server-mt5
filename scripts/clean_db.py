@@ -3,6 +3,7 @@ import os
 import sys
 from sqlalchemy import text, MetaData
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.prompt import Confirm
@@ -37,6 +38,18 @@ async def clean_database():
         sys.exit(1)
 
     engine = create_async_engine(DATABASE_URL)
+
+    engine = create_async_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        echo=False,
+        poolclass=NullPool,
+        connect_args={
+            "prepared_statement_cache_size": 0,
+            "statement_cache_size": 0,
+        },
+    )
+
     metadata = MetaData()
 
     try:

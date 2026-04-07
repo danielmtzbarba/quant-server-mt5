@@ -5,7 +5,7 @@ from typing import List, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .watchlist import WatchlistItem
-    from .trading import BrokerAccount
+    from .trading import BrokerAccount, Strategy
     from .alert import Alert
     from .auth import LoginToken
 
@@ -33,4 +33,7 @@ class User(Base):
     )
     login_tokens: Mapped[List["LoginToken"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
+    )
+    subscribed_strategies: Mapped[List["Strategy"]] = relationship(
+        secondary="user_strategies", back_populates="users"
     )
