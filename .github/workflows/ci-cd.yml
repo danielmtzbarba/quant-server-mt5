@@ -3,8 +3,16 @@ name: CI/CD (Master Pipeline)
 on:
   push:
     branches: ["**"]
+    paths-ignore:
+      - 'infra/terraform/azure_*.tf'
+      - 'infra/docker/trading_engine/**'
+      - '.github/workflows/deploy-azure-mt5.yml'
   pull_request:
     branches: ["**"]
+    paths-ignore:
+      - 'infra/terraform/azure_*.tf'
+      - 'infra/docker/trading_engine/**'
+      - '.github/workflows/deploy-azure-mt5.yml'
   workflow_dispatch:
 
 permissions:

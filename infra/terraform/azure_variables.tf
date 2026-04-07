@@ -42,3 +42,18 @@ variable "azure_vm_size" {
   type        = string
   default     = "Standard_B1s"
 }
+
+variable "admin_ip" {
+  description = "Whitelisted IP address for SSH access."
+  type        = string
+}
+
+variable "ssh_public_key" {
+  description = "SSH public key to inject into the VM."
+  type        = string
+}
+
+variable "github_repo_url" {
+  description = "The URL of the GitHub repository to clone."
+  type        = string
+}

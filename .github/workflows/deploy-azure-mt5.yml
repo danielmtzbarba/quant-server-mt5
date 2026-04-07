@@ -6,6 +6,12 @@ on:
     paths:
       - 'infra/docker/trading_engine/**'
       - 'infra/terraform/azure_*.tf'
+    paths-ignore:
+      - 'infra/terraform/main.tf'
+      - 'infra/terraform/variables.tf'
+      - 'services/core_service/**'
+      - 'services/messaging_service/**'
+      - '.github/workflows/ci-cd.yml'
   workflow_dispatch:
 
 permissions:
