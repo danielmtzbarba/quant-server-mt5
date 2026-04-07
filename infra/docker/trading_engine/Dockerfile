@@ -36,8 +36,8 @@ RUN wget -q https://bootstrap.pypa.io/pip/3.8/get-pip.py && \
 RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install MetaTrader5 fastapi uvicorn httpx
 
 
-# 7. Copy the pre-installed MT5 files into the image (Portable Method)
-COPY mt5.tar.gz /tmp/mt5.tar.gz
+# 7. Pull the pre-installed MT5 portable archive from GitHub Releases
+RUN wget -qO /tmp/mt5.tar.gz "https://github.com/danielmtzbarba/quant-server-mt5/releases/download/v0.1.0-alpha/mt5.tar.gz"
 
 # 8. Unzip them directly into the Wine C: drive
 RUN mkdir -p "/root/.wine/drive_c/Program Files/" && \
