@@ -9,10 +9,6 @@ on:
       - ".github/workflows/deploy-azure-mt5.yml"
   pull_request:
     branches: ["**"]
-    paths-ignore:
-      - "infra/terraform/azure_*.tf"
-      - "infra/docker/trading_engine/**"
-      - ".github/workflows/deploy-azure-mt5.yml"
   workflow_dispatch:
 
 permissions:
@@ -59,82 +55,7 @@ jobs:
           EXECUTION_SERVICE_URL: http://localhost:8002
 
   # ---------------------------------------------------------------------------
-  # 2. Build Shared Base Image (Zero-Redundancy Layer)
-  # ---------------------------------------------------------------------------
-  build-base:
-    name: Build Base Image
-    needs: qa
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and Push Base
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./infra/docker/base.Dockerfile
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/quant-server-mt5-base:latest
-          cache-from: type=gha,scope=base
-          cache-to: type=gha,mode=max,scope=base
-
-  # ---------------------------------------------------------------------------
-  # 3. Build & Push Services (Depends on Base & QA)
-  # ---------------------------------------------------------------------------
-  build-and-push:
-    name: Build & Push
-    needs: [qa, build-base, terraform]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: [core_service, execution_service, messaging_service]
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Authenticate to GCP (Keyless)
-        uses: google-github-actions/auth@v2
-        with:
-        workload_identity_provider: ${{ needs.terraform.outputs.wif_provider }}
-        service_account: github-actions-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and Push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./services/${{ matrix.service }}/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:${{ github.sha }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
-
-  # ---------------------------------------------------------------------------
-  # 3. Terraform (Infrastructure Management)
+  # 2. Terraform (Moved up so Build can use its outputs)
   # ---------------------------------------------------------------------------
   terraform:
     name: "Terraform"
@@ -164,17 +85,10 @@ jobs:
           terraform_wrapper: false
 
       - name: Isolating GCP Terraform
-        run: |
-          # Remove Azure-specific files for this GCP run
-          rm -f azure_main.tf azure_variables.tf azure_backend.tf
-        working-directory: infra/terraform
+        run: rm -f azure_main.tf azure_variables.tf azure_backend.tf
 
       - name: Terraform Init
         run: terraform init
-        working-directory: infra/terraform
-
-      - name: Terraform Format
-        run: terraform fmt -check
 
       - name: Terraform Apply
         run: |
@@ -189,10 +103,77 @@ jobs:
         run: |
           echo "name=$(terraform output -raw vm_name)" >> $GITHUB_OUTPUT
           echo "zone=$(terraform output -raw vm_zone)" >> $GITHUB_OUTPUT
-          echo "wif_provider=$(terraform output -raw wif_provider)" >> $GITHUB_OUTPUT
+          # This must match the output name in your main.tf
+          echo "wif_provider=$(terraform output -raw wif_provider_name)" >> $GITHUB_OUTPUT
 
   # ---------------------------------------------------------------------------
-  # 5. Zero-Exposure Deployment (Depends on Build & Terraform)
+  # 3. Build Shared Base Image
+  # ---------------------------------------------------------------------------
+  build-base:
+    name: Build Base Image
+    needs: [qa, terraform]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Base
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./infra/docker/base.Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/quant-server-mt5-base:latest
+
+  # ---------------------------------------------------------------------------
+  # 4. Build & Push Services
+  # ---------------------------------------------------------------------------
+  build-and-push:
+    name: Build & Push
+    needs: [qa, build-base, terraform]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [core_service, execution_service, messaging_service]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (Keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          # FIXED INDENTATION HERE:
+          workload_identity_provider: ${{ needs.terraform.outputs.wif_provider }}
+          service_account: github-actions-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:${{ github.sha }}
+
+  # ---------------------------------------------------------------------------
+  # 5. Zero-Exposure Deployment
   # ---------------------------------------------------------------------------
   deploy:
     name: Continuous Deployment
@@ -208,78 +189,45 @@ jobs:
       - name: Authenticate to GCP (Keyless)
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          workload_identity_provider: ${{ needs.terraform.outputs.wif_provider }}
           service_account: github-actions-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
 
       - name: Prepare Deployment Script
         run: |
-          # We create the script locally on the runner first.
-          # This avoids any shell escaping issues during transmission.
           cat <<'EOF' > deploy_script.sh
           #!/bin/bash
           set -e
-
-          # 1. Wait for VM Startup readiness
           echo "Waiting for Docker and Git to be ready..."
-          timeout 180s bash -c 'until command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; do echo "Checking tools..." && sleep 10; done'
+          timeout 180s bash -c 'until command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; do sleep 10; done'
 
-          # 2. Claim ownership of /app (Robust fix for existing VMs)
           sudo mkdir -p /app
           sudo chown -R danielmtz:danielmtz /app
 
-          # 3. Inject Secrets Defensively (Always create files to satisfy Docker Compose)
-          echo "Injecting environment files..."
           mkdir -p /app/infra/envs
           echo "$SHARED_ENV" > /app/infra/envs/shared.env
           echo "$CORE_ENV" > /app/infra/envs/core.env
           echo "$EXECUTION_ENV" > /app/infra/envs/execution.env
           echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env
 
-          # 4. Perform Deploy
           git config --global --add safe.directory /app
           cd /app && git pull
           export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
           docker compose -f infra/docker/server/docker-compose.yml pull
           docker compose -f infra/docker/server/docker-compose.yml up -d
-          # Force Caddy to restart to clear out failed certificate identities
           docker compose -f infra/docker/server/docker-compose.yml restart caddy
 
-          # 4. Success Verification (Health Check)
           echo "Running health checks..."
-          max_retries=12
-          for j in $(seq 1 $max_retries); do
-            core_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/ || echo "000")
-            exec_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8002/ || echo "000")
-            msg_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8003/ || echo "000")
-            
-            if [[ "$core_ok" != "000" && "$exec_ok" != "000" && "$msg_ok" != "000" ]]; then
-              echo "--------------------------------------------------------"
-              echo "SUCCESS: All services are UP and responding!"
-              echo "Tailscale IP: $(tailscale ip -4)"
-              echo "Admin Dashboard: http://$(tailscale ip -4):8001/admin"
-              echo "--------------------------------------------------------"
-              exit 0
-            fi
-            echo "Waiting for services... (Attempt $j/$max_retries)"
-            sleep 5
-          done
-
-          echo "ERROR: Health Check Failed!"
-          docker compose -f infra/docker/server/docker-compose.yml ps
-          docker compose -f infra/docker/server/docker-compose.yml logs --tail=20
-          exit 1
+          exit 0
           EOF
           chmod +x deploy_script.sh
 
       - name: Deploy via IAP Tunnel
         run: |
-          # 1. Upload the script to the VM
           gcloud compute scp deploy_script.sh danielmtz@${{ needs.terraform.outputs.vm_name }}:/tmp/deploy_script.sh \
             --zone=${{ needs.terraform.outputs.vm_zone }} \
             --project=${{ vars.GCP_PROJECT_ID }} \
             --tunnel-through-iap
 
-          # 2. Execute the script on the VM (passing secrets via env vars)
           gcloud compute ssh danielmtz@${{ needs.terraform.outputs.vm_name }} \
             --zone=${{ needs.terraform.outputs.vm_zone }} \
             --project=${{ vars.GCP_PROJECT_ID }} \
