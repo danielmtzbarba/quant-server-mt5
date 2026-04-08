@@ -48,7 +48,7 @@ jobs:
             -var="AZURE_LOCATION=westeurope" \
             -var="AZURE_VM_SIZE=Standard_B2ts_v2" \
             -var="ADMIN_IP=${{ secrets.ADMIN_IP }}" \
-            -var="SSH_PUBLIC_KEY=${{ secrets.GCP_SSH_PUBLIC_KEY }}" \
+            -var="SSH_PUBLIC_KEY=${{ secrets.AZURE_SSH_PUBLIC_KEY }}" \
             -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}" \
             -var="TAILSCALE_AUTH_KEY=${{ secrets.TAILSCALE_AUTH_KEY }}"
         working-directory: infra/terraform
