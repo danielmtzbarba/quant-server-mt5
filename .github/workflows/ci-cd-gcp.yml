@@ -1,4 +1,4 @@
-# Trigger GCP workflow
+# Trigger GCP workflow (moving from region)
 name: CI/CD (GCP Server)
 
 on:
