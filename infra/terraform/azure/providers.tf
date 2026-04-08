@@ -23,8 +23,6 @@ provider "azurerm" {
       prevent_deletion_if_contains_resources = false
     }
     virtual_machine {
-      # Ensures the OS disk is deleted when the VM is deleted
-      delete_os_disk_on_deployment_deletion = true
     }
   }
 }

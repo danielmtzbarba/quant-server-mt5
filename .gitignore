@@ -95,6 +95,8 @@ venv.bak/
 
 # PyPI configuration file
 .pypirc
-infra/terraform/terraform.tfvars
-infra/terraform/.terraform/
-infra/terraform/*.tfstate*
+
+# Terraform
+*.tfvars
+*.tfstate
+*.terraform/
