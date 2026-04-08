@@ -220,8 +220,12 @@ jobs:
 
           git config --global --add safe.directory /app
           if [ ! -d "/app/.git" ]; then
-            echo "First time deploy: Cloning repository..."
-            sudo git clone https://github.com/${{ github.repository }} /app
+            echo "First time deploy: Initializing repository in /app..."
+            cd /app
+            sudo git init
+            sudo git remote add origin https://github.com/${{ github.repository }}
+            sudo git fetch origin
+            sudo git checkout -f main
             sudo chown -R danielmtz:danielmtz /app
           fi
           cd /app && git pull
