@@ -8,13 +8,23 @@ provider "azurerm" {
   features {}
 }
 
-# Match existing name: quant-trading-rg
+# --- NEW: THE IMPORT BLOCK ---
+# This "adopts" your existing Resource Group into the new name "main"
+import {
+  to = azurerm_resource_group.main
+  id = "/subscriptions/${var.AZURE_SUBSCRIPTION_ID}/resourceGroups/quant-trading-rg"
+}
+
+# Keep this as "main" to match your other resources
 resource "azurerm_resource_group" "main" {
   name     = var.AZURE_RESOURCE_GROUP
   location = var.AZURE_LOCATION
 }
 
-# Match existing name: trading-network
+# ---------------------------------------------------------------------------
+# The rest of your file (Network, Subnet, IP, NIC, VM) stays exactly the same
+# ---------------------------------------------------------------------------
+
 resource "azurerm_virtual_network" "main" {
   name                = "trading-network"
   address_space       = ["10.0.0.0/16"]
@@ -22,7 +32,6 @@ resource "azurerm_virtual_network" "main" {
   resource_group_name = azurerm_resource_group.main.name
 }
 
-# Match existing name: trading-subnet
 resource "azurerm_subnet" "internal" {
   name                 = "trading-subnet"
   resource_group_name  = azurerm_resource_group.main.name
@@ -30,16 +39,14 @@ resource "azurerm_subnet" "internal" {
   address_prefixes     = ["10.0.2.0/24"]
 }
 
-# Match existing name: mt5-public-ip
 resource "azurerm_public_ip" "main" {
   name                = "mt5-public-ip"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   allocation_method   = "Static"
-  sku                 = "Standard" # Matches your existing IP SKU
+  sku                 = "Standard" 
 }
 
-# Match existing name: mt5-nic
 resource "azurerm_network_interface" "main" {
   name                = "mt5-nic"
   location            = azurerm_resource_group.main.location
@@ -53,7 +60,6 @@ resource "azurerm_network_interface" "main" {
   }
 }
 
-# Match existing name: mt5-engine-azure
 resource "azurerm_linux_virtual_machine" "main" {
   name                = "mt5-engine-azure"
   resource_group_name  = azurerm_resource_group.main.name
@@ -64,7 +70,7 @@ resource "azurerm_linux_virtual_machine" "main" {
 
   admin_ssh_key {
     username   = "danielmtz"
-    public_key = var.SSH_PUBLIC_KEY # Pass the new RSA key here
+    public_key = var.SSH_PUBLIC_KEY 
   }
 
   os_disk {
@@ -79,19 +85,15 @@ resource "azurerm_linux_virtual_machine" "main" {
     version   = "latest"
   }
 
-  # Base64 user_data as required by Azure
   user_data = base64encode(<<-EOT
     #!/bin/bash
     set -e
-    # Install Docker
     curl -fsSL https://get.docker.com | sh
     systemctl enable --now docker
     
-    # Setup Tailscale (Host Mode)
     curl -fsSL https://tailscale.com/install.sh | sh
     tailscale up --authkey=${var.TAILSCALE_AUTH_KEY} --hostname=mt5-vm-azure --tag=tag:trading --overwrite-admins
 
-    # Trust Tailscale
     ufw allow in on tailscale0
     ufw allow 22/tcp
     ufw allow 8000/tcp
