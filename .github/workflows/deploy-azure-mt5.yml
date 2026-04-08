@@ -117,22 +117,28 @@ jobs:
           echo "VM_IP=$TS_IP" >> $GITHUB_ENV
 
       - name: SSH and Restart Stack
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.VM_IP }}
-          username: danielmtz
-          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
-          script: |
+        run: |
+          echo "Setting up native SSH key..."
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          echo "Executing remote commands over Tailscale..."
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key danielmtz@${{ env.VM_IP }} << 'EOF'
+            echo "Waiting for Azure VM to finish installing dependencies..."
+            cloud-init status --wait
+            
             cd /app
             git pull origin dev
             cd infra/docker/trading_engine
-
+            
             echo "MT5_LOGIN=${{ secrets.MT5_LOGIN }}" > .env
             echo "MT5_PASSWORD=${{ secrets.MT5_PASSWORD }}" >> .env
             echo "MT5_SERVER=${{ secrets.MT5_SERVER }}" >> .env
             echo "BACKEND_URL=${{ vars.BACKEND_URL }}" >> .env
             echo "TS_AUTHKEY=${{ secrets.TAILSCALE_AUTH_KEY }}" >> .env
-
+            
             docker compose pull
             docker compose up -d
             docker compose ps
+          EOF
