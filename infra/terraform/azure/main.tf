@@ -1,4 +1,4 @@
-# Trigger workflow
+# Trigger Azure workflow
 # 1. Resource Group
 resource "azurerm_resource_group" "main" {
   name     = var.AZURE_RESOURCE_GROUP
