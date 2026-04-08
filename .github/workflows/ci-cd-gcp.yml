@@ -1,4 +1,4 @@
-# Trigger workflow
+# Trigger GCP workflow
 name: CI/CD (GCP Server)
 
 on:
