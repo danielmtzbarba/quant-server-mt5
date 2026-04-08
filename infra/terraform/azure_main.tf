@@ -1,79 +1,62 @@
-provider "azurerm" {
-  features {}
-  subscription_id = var.AZURE_SUBSCRIPTION_ID
-  client_id       = var.AZURE_CLIENT_ID
-  client_secret   = var.AZURE_CLIENT_SECRET
-  tenant_id       = var.AZURE_TENANT_ID
-}
-
-resource "azurerm_virtual_network" "main" {
-  name                = "trading-network"
-  address_space       = ["10.0.0.0/16"]
-  location            = var.AZURE_LOCATION
-  resource_group_name = var.AZURE_RESOURCE_GROUP
-}
-
-resource "azurerm_subnet" "internal" {
-  name                 = "trading-subnet"
-  resource_group_name  = var.AZURE_RESOURCE_GROUP
-  virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = ["10.0.2.0/24"]
-}
-
-resource "azurerm_public_ip" "main" {
-  name                = "mt5-public-ip"
-  resource_group_name = var.AZURE_RESOURCE_GROUP
-  location            = var.AZURE_LOCATION
-  allocation_method   = "Static"
-  sku                 = "Standard"
-}
-
-resource "azurerm_network_security_group" "main" {
-  name                = "trading-nsg"
-  location            = var.AZURE_LOCATION
-  resource_group_name = var.AZURE_RESOURCE_GROUP
-
-  security_rule {
-    name                       = "SSH"
-    priority                   = 1001
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = "${var.ADMIN_IP}/32"
-    destination_address_prefix = "*"
+# Standard Azure Provider Config
+terraform {
+  required_providers {
+    azurerm = { source = "hashicorp/azurerm", version = "~> 3.0" }
   }
 }
 
-resource "azurerm_network_interface" "main" {
+provider "azurerm" {
+  features {}
+}
+
+# Resource Group & Networking
+resource "azurerm_resource_group" "rg" {
+  name     = var.AZURE_RESOURCE_GROUP
+  location = var.AZURE_LOCATION
+}
+
+resource "azurerm_virtual_network" "vnet" {
+  name                = "mt5-vnet"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+resource "azurerm_subnet" "subnet" {
+  name                 = "mt5-subnet"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+resource "azurerm_public_ip" "pip" {
+  name                = "mt5-pip"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface" "nic" {
   name                = "mt5-nic"
-  location            = var.AZURE_LOCATION
-  resource_group_name = var.AZURE_RESOURCE_GROUP
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
 
   ip_configuration {
     name                          = "internal"
-    subnet_id                     = azurerm_subnet.internal.id
+    subnet_id                     = azurerm_subnet.subnet.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.main.id
+    public_ip_address_id          = azurerm_public_ip.pip.id
   }
 }
 
-resource "azurerm_network_interface_security_group_association" "main" {
-  network_interface_id      = azurerm_network_interface.main.id
-  network_security_group_id = azurerm_network_security_group.main.id
-}
-
-resource "azurerm_linux_virtual_machine" "main" {
-  name                = var.AZURE_INSTANCE_NAME
-  resource_group_name = var.AZURE_RESOURCE_GROUP
-  location            = var.AZURE_LOCATION
+# Azure VM
+resource "azurerm_linux_virtual_machine" "vm" {
+  name                = "mt5-vm-azure"
+  resource_group_name  = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
   size                = var.AZURE_VM_SIZE
   admin_username      = "danielmtz"
-
-  network_interface_ids = [
-    azurerm_network_interface.main.id,
-  ]
+  network_interface_ids = [azurerm_network_interface.nic.id]
 
   admin_ssh_key {
     username   = "danielmtz"
@@ -93,35 +76,28 @@ resource "azurerm_linux_virtual_machine" "main" {
   }
 
   user_data = base64encode(<<-EOT
-    #cloud-config
-    runcmd:
-      - apt-get update
-      - apt-get install -y apt-transport-https ca-certificates curl software-properties-common git
-      - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-      - add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable"
-      - apt-get update
-      - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      - systemctl enable docker
-      - systemctl start docker
-      - usermod -aG docker danielmtz
-      - curl -fsSL https://tailscale.com/install.sh | sh
-      - tailscale up --authkey=${var.TAILSCALE_AUTH_KEY} --hostname=mt5-engine-azure --tag=tag:trading
-      - ufw allow in on tailscale0
-      - ufw allow 8000/tcp
-      - ufw allow 8086/tcp
-      - systemctl restart ssh 
-      - fallocate -l 2G /swapfile
-      - chmod 600 /swapfile
-      - mkswap /swapfile
-      - swapon /swapfile
-      - echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
-      - mkdir -p /app
-      - git clone ${var.GITHUB_REPO_URL} /app
-      - chown -R danielmtz:danielmtz /app
-    EOT
-  )
-}
+    #!/bin/bash
+    set -e
+    # 1. Install Docker
+    curl -fsSL https://get.docker.com | sh
+    systemctl enable --now docker
+    usermod -aG docker danielmtz
 
-output "azure_vm_public_ip" {
-  value = azurerm_public_ip.main.ip_address
+    # 2. Install Tailscale
+    curl -fsSL https://tailscale.com/install.sh | sh
+    # Use host name 'mt5-vm-azure' to avoid collision with container
+    tailscale up --authkey=${var.TAILSCALE_AUTH_KEY} --hostname=mt5-vm-azure --tag=tag:trading --overwrite-admins
+
+    # 3. Security: Allow internal Tailscale traffic
+    ufw allow in on tailscale0
+    ufw allow 22/tcp
+    ufw allow 8000/tcp
+    ufw allow 8086/tcp
+
+    # 4. App Directory
+    mkdir -p /app
+    chown -R danielmtz:danielmtz /app
+    git clone ${var.GITHUB_REPO_URL} /app
+  EOT
+  )
 }

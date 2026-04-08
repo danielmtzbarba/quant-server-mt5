@@ -1,25 +1,11 @@
 services:
-  mt5-engine:
-    image: mt5-engine:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: mt5_engine
-    restart: unless-stopped
-    env_file:
-      - .env
-    # The absolute best way to secure a container.
-    network_mode: service:tailscale-mt5
-    depends_on:
-      - tailscale-mt5
-
   tailscale-mt5:
     image: tailscale/tailscale:latest
     container_name: tailscale_mt5
-    hostname: mt5-engine-azure
-    env_file:
+    hostname: mt5-engine-azure # This is the name the bots use
+    environment:
       - TS_AUTHKEY=${TS_AUTHKEY}
-      - TS_EXTRA_ARGS=--tag=tag:trading --overwrite-admins # Add your security tags here
+      - TS_EXTRA_ARGS=--tag=tag:trading --overwrite-admins
       - TS_STATEFUL_CONFIG=true
     volumes:
       - tailscale_state:/var/lib/tailscale
@@ -29,31 +15,32 @@ services:
       - sys_module
     restart: unless-stopped
 
+  mt5-engine:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/mt5-engine:latest
+    container_name: mt5_engine
+    network_mode: service:tailscale-mt5 # Joins the Tailscale network
+    depends_on:
+      - tailscale-mt5
+    env_file: .env
+    restart: unless-stopped
+
   influxdb-mt5:
     image: influxdb:2.7
     container_name: influxdb_mt5
-    restart: unless-stopped
-    network_mode: service:tailscale-mt5
+    network_mode: service:tailscale-mt5 # Joins the Tailscale network
     depends_on:
       - tailscale-mt5
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword # User should change this
       - DOCKER_INFLUXDB_INIT_ORG=danielmtz
       - DOCKER_INFLUXDB_INIT_BUCKET=tradedb
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=X3jsB_yeGU3Il5BINWNYNicYDQ7dkhjbG4PHUAN6yt9XuJHaN8Bj7ROyQr81h-Vwh3Qw6qHNMLF2wylXdaEnFQ==
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_TOKEN}
     volumes:
       - influxdb_data:/var/lib/influxdb2
     deploy:
       resources:
         limits:
           memory: 512M
-        reservations:
-          memory: 256M
-    # Hide from public, only reachable via service name within Docker or Tailscale sidecar
-    # If needing Tailscale access, we'd add network_mode: service:tailscale-mt5 
-    # but for now, simple internal networking is safer.
 
 volumes:
   tailscale_state:
