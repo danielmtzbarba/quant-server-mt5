@@ -6,13 +6,13 @@ variable "PROJECT_ID" {
 variable "REGION" {
   description = "The GCP region for the deployment."
   type        = string
-  default     = "us-central1"
+  default     = "europe-west3"
 }
 
 variable "ZONE" {
   description = "The GCP zone for the deployment."
   type        = string
-  default     = "us-west3-a"
+  default     = "europe-west3-a"
 }
 
 variable "INSTANCE_NAME" {

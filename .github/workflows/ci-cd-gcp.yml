@@ -1,4 +1,4 @@
-# Trigger GCP workflow (moving to EU, non free tier)
+# Trigger GCP workflow  (moving to EU, non free tier)
 name: CI/CD (GCP Server)
 
 on:
@@ -90,6 +90,9 @@ jobs:
 
       - name: Terraform Apply
         run: |
+          # Force IP recreation because IPs are regional
+          terraform taint google_compute_address.static_ip || true
+          
           terraform apply -auto-approve \
             -var="PROJECT_ID=${{ vars.GCP_PROJECT_ID }}" \
             -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}" \
