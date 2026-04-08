@@ -1,4 +1,4 @@
-# Trigger GCP workflow (moving from region)
+# Trigger GCP workflow (moving to EU, non free tier)
 name: CI/CD (GCP Server)
 
 on:

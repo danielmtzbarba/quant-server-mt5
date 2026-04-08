@@ -12,7 +12,7 @@ variable "REGION" {
 variable "ZONE" {
   description = "The GCP zone for the deployment."
   type        = string
-  default     = "us-central1-a"
+  default     = "us-west3-a"
 }
 
 variable "INSTANCE_NAME" {
@@ -24,7 +24,7 @@ variable "INSTANCE_NAME" {
 variable "MACHINE_TYPE" {
   description = "The machine type for the instance."
   type        = string
-  default     = "e2-small"
+  default     = "e2-micro"
 }
 
 variable "GITHUB_REPO_URL" {
