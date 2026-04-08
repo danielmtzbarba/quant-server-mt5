@@ -166,3 +166,7 @@ output "vm_name" {
 output "vm_zone" {
   value = google_compute_instance.quant_vm.zone
 }
+
+output "wif_provider_name" {
+  value = google_iam_workload_identity_pool_provider.github_provider.name
+}
