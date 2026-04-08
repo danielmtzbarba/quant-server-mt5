@@ -46,7 +46,7 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 MT5_PATH = r"C:\Program Files\MetaTrader 5\terminal64.exe"
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://mt5-engine-azure:8002")
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://mt5-engine-gcp:8002")
 
 # InfluxDB Configuration
 INFLUX_URL = os.environ.get("INFLUX_URL", "http://localhost:8086")

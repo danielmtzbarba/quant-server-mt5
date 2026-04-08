@@ -105,7 +105,11 @@ resource "azurerm_linux_virtual_machine" "main" {
       - systemctl start docker
       - usermod -aG docker danielmtz
       - curl -fsSL https://tailscale.com/install.sh | sh
-      - tailscale up --authkey=${var.TAILSCALE_AUTH_KEY} --hostname=mt5-engine-azure
+      - tailscale up --authkey=${var.TAILSCALE_AUTH_KEY} --hostname=mt5-engine-azure --tag=tag:trading
+      - ufw allow in on tailscale0
+      - ufw allow 8000/tcp
+      - ufw allow 8086/tcp
+      - systemctl restart ssh 
       - fallocate -l 2G /swapfile
       - chmod 600 /swapfile
       - mkswap /swapfile

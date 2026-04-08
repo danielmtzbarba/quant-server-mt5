@@ -18,7 +18,9 @@ services:
     container_name: tailscale_mt5
     hostname: mt5-engine-azure
     env_file:
-      - .env
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_EXTRA_ARGS=--tag=tag:trading --overwrite-admins # Add your security tags here
+      - TS_STATEFUL_CONFIG=true
     volumes:
       - tailscale_state:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
