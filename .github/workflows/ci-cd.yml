@@ -4,15 +4,15 @@ on:
   push:
     branches: ["**"]
     paths-ignore:
-      - 'infra/terraform/azure_*.tf'
-      - 'infra/docker/trading_engine/**'
-      - '.github/workflows/deploy-azure-mt5.yml'
+      - "infra/terraform/azure_*.tf"
+      - "infra/docker/trading_engine/**"
+      - ".github/workflows/deploy-azure-mt5.yml"
   pull_request:
     branches: ["**"]
     paths-ignore:
-      - 'infra/terraform/azure_*.tf'
-      - 'infra/docker/trading_engine/**'
-      - '.github/workflows/deploy-azure-mt5.yml'
+      - "infra/terraform/azure_*.tf"
+      - "infra/docker/trading_engine/**"
+      - ".github/workflows/deploy-azure-mt5.yml"
   workflow_dispatch:
 
 permissions:
@@ -95,7 +95,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build-and-push:
     name: Build & Push
-    needs: [qa, build-base]
+    needs: [qa, build-base, terraform]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     strategy:
@@ -216,15 +216,15 @@ jobs:
           cat <<'EOF' > deploy_script.sh
           #!/bin/bash
           set -e
-          
+
           # 1. Wait for VM Startup readiness
           echo "Waiting for Docker and Git to be ready..."
           timeout 180s bash -c 'until command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; do echo "Checking tools..." && sleep 10; done'
-          
+
           # 2. Claim ownership of /app (Robust fix for existing VMs)
           sudo mkdir -p /app
           sudo chown -R danielmtz:danielmtz /app
-          
+
           # 3. Inject Secrets Defensively (Always create files to satisfy Docker Compose)
           echo "Injecting environment files..."
           mkdir -p /app/infra/envs
@@ -232,7 +232,7 @@ jobs:
           echo "$CORE_ENV" > /app/infra/envs/core.env
           echo "$EXECUTION_ENV" > /app/infra/envs/execution.env
           echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env
-          
+
           # 4. Perform Deploy
           git config --global --add safe.directory /app
           cd /app && git pull
@@ -241,7 +241,7 @@ jobs:
           docker compose -f infra/docker/server/docker-compose.yml up -d
           # Force Caddy to restart to clear out failed certificate identities
           docker compose -f infra/docker/server/docker-compose.yml restart caddy
-          
+
           # 4. Success Verification (Health Check)
           echo "Running health checks..."
           max_retries=12
@@ -261,7 +261,7 @@ jobs:
             echo "Waiting for services... (Attempt $j/$max_retries)"
             sleep 5
           done
-          
+
           echo "ERROR: Health Check Failed!"
           docker compose -f infra/docker/server/docker-compose.yml ps
           docker compose -f infra/docker/server/docker-compose.yml logs --tail=20
@@ -276,7 +276,7 @@ jobs:
             --zone=${{ needs.terraform.outputs.vm_zone }} \
             --project=${{ vars.GCP_PROJECT_ID }} \
             --tunnel-through-iap
-          
+
           # 2. Execute the script on the VM (passing secrets via env vars)
           gcloud compute ssh danielmtz@${{ needs.terraform.outputs.vm_name }} \
             --zone=${{ needs.terraform.outputs.vm_zone }} \
