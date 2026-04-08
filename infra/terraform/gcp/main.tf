@@ -120,11 +120,7 @@ resource "google_compute_instance" "quant_vm" {
     # 2. Tailscale Setup
     curl -fsSL https://tailscale.com/install.sh | sh
     
-    # Fetch key from Secret Manager
-    TS_AUTH_KEY=$(gcloud secrets versions access latest --secret="TAILSCALE_AUTH_KEY")
-    
-    # FIXED: Use --advertise-tags for newer versions
-    sudo tailscale up --authkey="$TS_AUTH_KEY" \
+    sudo tailscale up --authkey="${var.TAILSCALE_AUTH_KEY}" \
                       --hostname="mt5-engine-gcp" \
                       --advertise-tags=tag:trading 
     
@@ -142,11 +138,6 @@ resource "google_compute_instance" "quant_vm" {
 
   metadata = {
     ssh-keys = "danielmtz:${var.SSH_PUBLIC_KEY}"
-  }
-
-  service_account {
-    # Full access to allow VM to fetch secrets
-    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 }
 
@@ -177,17 +168,6 @@ resource "google_iam_workload_identity_pool_provider" "github_provider" {
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
-}
-
-# ---------------------------------------------------------------------------
-# 6. IAM Permissions
-# ---------------------------------------------------------------------------
-
-# Allow the VM to read the Tailscale Secret
-resource "google_project_iam_member" "vm_secret_accessor" {
-  project = var.PROJECT_ID
-  role    = "roles/secretmanager.secretAccessor"
-  member  = "serviceAccount:${google_compute_instance.quant_vm.service_account[0].email}"
 }
 
 # ---------------------------------------------------------------------------

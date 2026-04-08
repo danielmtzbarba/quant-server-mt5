@@ -18,7 +18,7 @@ variable "ZONE" {
 variable "INSTANCE_NAME" {
   description = "The name of the GCE instance."
   type        = string
-  default     = "mt5-quant-server-vm"
+  default     = "mt5-engine-gcp"
 }
 
 variable "MACHINE_TYPE" {
@@ -40,5 +40,11 @@ variable "SSH_PUBLIC_KEY" {
 variable "ADMIN_IP" {
   description = "Whitelisted IP address for restricted ports and SSH access."
   type        = string
+}
+
+variable "TAILSCALE_AUTH_KEY" {
+  type        = string
+  description = "Tailscale ephemeral auth key from GitHub Secrets"
+  sensitive   = true
 }
 

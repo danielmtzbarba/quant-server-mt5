@@ -121,7 +121,7 @@ jobs:
           chmod 600 ~/.ssh/azure_deploy_key
 
           # Use a heredoc without quotes to allow GitHub variable expansion
-          ssh -vv -o StrictHostKeyChecking=no -i ~/.ssh/azure_deploy_key danielmtz@${{ env.VM_IP }} << EOF
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/azure_deploy_key danielmtz@${{ env.VM_IP }} << EOF
             sudo cloud-init status --wait
             
             # Navigate to app and update
