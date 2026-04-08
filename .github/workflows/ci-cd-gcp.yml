@@ -94,7 +94,8 @@ jobs:
             -var="PROJECT_ID=${{ vars.GCP_PROJECT_ID }}" \
             -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}" \
             -var="SSH_PUBLIC_KEY=${{ secrets.GCP_SSH_PUBLIC_KEY }}" \
-            -var="ADMIN_IP=${{ secrets.ADMIN_IP }}"
+            -var="ADMIN_IP=${{ secrets.ADMIN_IP }}" \
+            -var="TAILSCALE_AUTH_KEY=${{ secrets.TAILSCALE_AUTH_KEY }}"
 
       - name: Get VM Metadata
         id: vm_meta
