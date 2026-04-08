@@ -12,7 +12,7 @@ variable "REGION" {
 variable "ZONE" {
   description = "The GCP zone for the deployment."
   type        = string
-  default     = "us-east1-b"
+  default     = "us-east1-d"
 }
 
 variable "INSTANCE_NAME" {
