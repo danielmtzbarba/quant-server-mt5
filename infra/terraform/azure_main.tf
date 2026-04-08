@@ -6,7 +6,6 @@ provider "azurerm" {
   tenant_id       = var.AZURE_TENANT_ID
 }
 
-# 1. Virtual Network
 resource "azurerm_virtual_network" "main" {
   name                = "trading-network"
   address_space       = ["10.0.0.0/16"]
@@ -14,7 +13,6 @@ resource "azurerm_virtual_network" "main" {
   resource_group_name = var.AZURE_RESOURCE_GROUP
 }
 
-# 2. Subnet
 resource "azurerm_subnet" "internal" {
   name                 = "trading-subnet"
   resource_group_name  = var.AZURE_RESOURCE_GROUP
@@ -22,7 +20,6 @@ resource "azurerm_subnet" "internal" {
   address_prefixes     = ["10.0.2.0/24"]
 }
 
-# 3. Public IP (Required for SSH/Deployment from Github)
 resource "azurerm_public_ip" "main" {
   name                = "mt5-public-ip"
   resource_group_name = var.AZURE_RESOURCE_GROUP
@@ -31,7 +28,6 @@ resource "azurerm_public_ip" "main" {
   sku                 = "Standard"
 }
 
-# 4. Network Security Group (Whitelist Admin SSH only)
 resource "azurerm_network_security_group" "main" {
   name                = "trading-nsg"
   location            = var.AZURE_LOCATION
@@ -50,7 +46,6 @@ resource "azurerm_network_security_group" "main" {
   }
 }
 
-# 5. Network Interface
 resource "azurerm_network_interface" "main" {
   name                = "mt5-nic"
   location            = var.AZURE_LOCATION
@@ -69,7 +64,6 @@ resource "azurerm_network_interface_security_group_association" "main" {
   network_security_group_id = azurerm_network_security_group.main.id
 }
 
-# 6. Linux Virtual Machine (Standard_B1s)
 resource "azurerm_linux_virtual_machine" "main" {
   name                = var.AZURE_INSTANCE_NAME
   resource_group_name = var.AZURE_RESOURCE_GROUP
@@ -98,7 +92,6 @@ resource "azurerm_linux_virtual_machine" "main" {
     version   = "latest"
   }
 
-  # Cloud-Init: Automated Docker + Tailscale + 2GB Swap setup
   user_data = base64encode(<<-EOT
     #cloud-config
     runcmd:

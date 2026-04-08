@@ -4,9 +4,9 @@ on:
   push:
     branches: [main, dev]
     paths:
-      - 'infra/docker/trading_engine/**'
-      - 'infra/terraform/azure_*.tf'
-      - '.github/workflows/deploy-azure-mt5.yml'
+      - "infra/docker/trading_engine/**"
+      - "infra/terraform/**"
+      - ".github/workflows/deploy-azure-mt5.yml"
   workflow_dispatch:
 
 permissions:
@@ -29,42 +29,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Isolating Azure Terraform
-        run: |
-          # COMPLETELY remove GCP-specific files for this Azure run
-          rm -f main.tf variables.tf terraform.tfvars backend.tf
-        working-directory: infra/terraform
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
         run: terraform init
-        working-directory: infra/terraform
-
-      - name: Terraform Import (Self-Healing)
-        run: |
-          # Define common args to keep the commands readable
-          COMMON_ARGS="-var=\"AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}\" -var=\"AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}\" -var=\"AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}\" -var=\"AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}\" -var=\"AZURE_RESOURCE_GROUP=${{ vars.AZURE_RESOURCE_GROUP }}\" -var=\"ADMIN_IP=${{ secrets.ADMIN_IP }}\" -var=\"SSH_PUBLIC_KEY=${{ secrets.GCP_SSH_PUBLIC_KEY }}\" -var=\"GITHUB_REPO_URL=https://github.com/${{ github.repository }}\" -var=\"TAILSCALE_AUTH_KEY=${{ secrets.TAILSCALE_AUTH_KEY }}\""
-          
-          BASE_ID="/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ vars.AZURE_RESOURCE_GROUP }}/providers/Microsoft.Network"
-
-          echo "Attempting to import existing infrastructure to avoid collisions..."
-          
-          # VNET
-          eval terraform import $COMMON_ARGS azurerm_virtual_network.main $BASE_ID/virtualNetworks/trading-network || true
-          
-          # SUBNET
-          eval terraform import $COMMON_ARGS azurerm_subnet.internal $BASE_ID/virtualNetworks/trading-network/subnets/trading-subnet || true
-
-          # NSG
-          eval terraform import $COMMON_ARGS azurerm_network_security_group.main $BASE_ID/networkSecurityGroups/trading-nsg || true
-
-          # PUBLIC IP
-          eval terraform import $COMMON_ARGS azurerm_public_ip.main $BASE_ID/publicIPAddresses/mt5-public-ip || true
-
-          # NIC
-          eval terraform import $COMMON_ARGS azurerm_network_interface.main $BASE_ID/networkInterfaces/mt5-nic || true
         working-directory: infra/terraform
 
       - name: Terraform Apply
@@ -74,7 +43,7 @@ jobs:
             -var="AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" \
             -var="AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
             -var="AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" \
-            -var="AZURE_RESOURCE_GROUP=${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -var="AZURE_RESOURCE_GROUP=${{ vars.AZURE_RESOURCE_GROUP || 'quant-trading-rg' }}" \
             -var="AZURE_LOCATION=westeurope" \
             -var="AZURE_VM_SIZE=Standard_B2ts_v2" \
             -var="ADMIN_IP=${{ secrets.ADMIN_IP }}" \
@@ -111,7 +80,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/mt5-engine:${{ github.sha }}
 
   # ---------------------------------------------------------------------------
-  # 3. Deploy to Azure VM via SSH
+  # 3. Deploy to Azure VM via Tailscale SSH
   # ---------------------------------------------------------------------------
   deploy:
     name: Deploy to Azure
@@ -121,16 +90,18 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Poll Target from Bastion
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
         with:
-          host: ${{ secrets.TAILSCALE_BASTION_IP }}
-          username: danielmtz
-          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
-          script: |
-            echo "Polling Target VM on Tailnet..."
-            timeout 300s bash -c 'while ! ping -c 1 mt5-engine-azure >/dev/null 2>&1; do echo "Waiting for MagicDNS propagation..."; sleep 10; done'
-            echo "Target is reachable via Tailscale!"
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Wait for Azure VM
+        run: |
+          echo "Polling Target VM on Tailnet..."
+          timeout 300s bash -c 'while ! ping -c 1 mt5-engine-azure >/dev/null 2>&1; do echo "Waiting for MagicDNS propagation..."; sleep 10; done'
+          echo "Target is reachable!"
 
       - name: SSH and Restart Stack
         uses: appleboy/ssh-action@v1.0.3
@@ -138,19 +109,17 @@ jobs:
           host: mt5-engine-azure
           username: danielmtz
           key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
-          proxy_host: ${{ secrets.TAILSCALE_BASTION_IP }} # Optional
-          # Note: If MagicDNS isn't propagated yet, the first run might need the IP
           script: |
             cd /app
             git pull origin dev
             cd infra/docker/trading_engine
-            # Injecting critical envs for local compose run
+
             echo "MT5_LOGIN=${{ secrets.MT5_LOGIN }}" > .env
             echo "MT5_PASSWORD=${{ secrets.MT5_PASSWORD }}" >> .env
             echo "MT5_SERVER=${{ secrets.MT5_SERVER }}" >> .env
             echo "BACKEND_URL=${{ vars.BACKEND_URL }}" >> .env
             echo "TS_AUTHKEY=${{ secrets.TAILSCALE_AUTH_KEY }}" >> .env
-            
+
             docker compose pull
             docker compose up -d
             docker compose ps
