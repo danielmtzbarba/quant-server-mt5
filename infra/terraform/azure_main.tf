@@ -1,23 +1,3 @@
-# Trigger GitHub Actions Workflow 
-
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.0"
-    }
-  }
-}
-
-provider "azurerm" {
-  features {
-    resource_group {
-      # Allows Terraform to clean up the RG even if "ghost" resources exist
-      prevent_deletion_if_contains_resources = false
-    }
-  }
-}
-
 # 1. Resource Group
 resource "azurerm_resource_group" "main" {
   name     = var.AZURE_RESOURCE_GROUP
