@@ -23,11 +23,3 @@ provider "google" {
   region  = var.region
   zone    = var.zone
 }
-
-provider "azurerm" {
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = false
-    }
-  }
-}

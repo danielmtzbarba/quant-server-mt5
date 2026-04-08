@@ -49,3 +49,19 @@ variable "TAILSCALE_AUTH_KEY" {
   sensitive   = true
 }
 
+variable "GITHUB_REPO_URL" {
+  description = "The URL of the GitHub repository to clone."
+  type        = string
+}
+
+variable "SSH_PUBLIC_KEY" {
+  description = "SSH public key to inject into the VM for GitHub Actions deployment."
+  type        = string
+}
+
+variable "ADMIN_IP" {
+  description = "Whitelisted IP address for restricted ports and SSH access."
+  type        = string
+}
+
+

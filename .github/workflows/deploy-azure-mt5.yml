@@ -5,7 +5,7 @@ on:
     branches: [main, dev]
     paths:
       - "infra/docker/trading_engine/**"
-      - "infra/terraform/azure_*.tf"
+      - "infra/terraform/azure/**"
       - ".github/workflows/deploy-azure-mt5.yml"
   workflow_dispatch:
 
@@ -22,22 +22,32 @@ jobs:
       ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+    defaults:
+      run:
+        working-directory: infra/terraform/azure
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Isolating Azure Terraform
-        # Removes generic files to ensure only azure_*.tf files define the resources
-        run: rm -f main.tf variables.tf terraform.tfvars backend.tf
-        working-directory: infra/terraform
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
         run: terraform init
-        working-directory: infra/terraform
 
+      - name: Terraform Import (Self-Healing)
+        run: ./import.sh
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_LOCATION: "westeurope"
+          AZURE_VM_SIZE: "Standard_B2ts_v2"
+          ADMIN_IP: ${{ secrets.ADMIN_IP }}
+          SSH_PUBLIC_KEY: ${{ secrets.AZURE_SSH_PUBLIC_KEY }}
+          GITHUB_REPO_URL: "https://github.com/${{ github.repository }}"
       - name: Terraform Apply
         run: |
           terraform apply -auto-approve \
@@ -52,7 +62,6 @@ jobs:
             -var="SSH_PUBLIC_KEY=${{ secrets.AZURE_SSH_PUBLIC_KEY }}" \
             -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}" \
             -var="TAILSCALE_AUTH_KEY=${{ secrets.TAILSCALE_AUTH_KEY }}"
-        working-directory: infra/terraform
 
   build-and-push:
     name: Build MT5 Engine
@@ -77,6 +86,8 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/mt5-engine:latest
             ghcr.io/${{ github.repository_owner }}/mt5-engine:${{ github.sha }}
+          cache-from: type=gha,scope=mt5-engine
+          cache-to: type=gha,mode=max,scope=mt5-engine
 
   deploy:
     name: Deploy to Azure

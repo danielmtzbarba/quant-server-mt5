@@ -14,7 +14,7 @@ locals {
 
 resource "google_project_service" "apis" {
   for_each = toset(local.services)
-  project  = var.project_id
+  project  = var.PROJECT_ID
   service  = each.key
 
   disable_on_destroy = false
@@ -25,8 +25,8 @@ resource "google_project_service" "apis" {
 # ---------------------------------------------------------------------------
 resource "google_compute_address" "static_ip" {
   name       = "quant-server-static-ip"
-  project    = var.project_id
-  region     = var.region
+  project    = var.PROJECT_ID
+  region     = var.REGION
   depends_on = [google_project_service.apis]
 }
 
@@ -84,9 +84,9 @@ resource "google_secret_manager_secret" "tailscale_auth_key" {
 # 4. GCE Instance
 # ---------------------------------------------------------------------------
 resource "google_compute_instance" "quant_vm" {
-  name         = var.instance_name
-  machine_type = var.machine_type
-  zone         = var.zone
+  name         = var.INSTANCE_NAME
+  machine_type = var.MACHINE_TYPE
+  zone         = var.ZONE
   tags         = ["quant-server"]
 
   boot_disk {
@@ -185,7 +185,7 @@ resource "google_iam_workload_identity_pool_provider" "github_provider" {
 
 # Allow the VM to read the Tailscale Secret
 resource "google_project_iam_member" "vm_secret_accessor" {
-  project = var.project_id
+  project = var.PROJECT_ID
   role    = "roles/secretmanager.secretAccessor"
   member  = "serviceAccount:${google_compute_instance.quant_vm.service_account[0].email}"
 }
