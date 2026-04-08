@@ -21,7 +21,9 @@ locals {
     "compute.googleapis.com",
     "secretmanager.googleapis.com",
     "cloudresourcemanager.googleapis.com",
-    "iam.googleapis.com"
+    "iam.googleapis.com",
+    "iamcredentials.googleapis.com", # Needed for WIF
+    "sts.googleapis.com"             # Needed for WIF
   ]
 }
 
@@ -52,7 +54,8 @@ resource "google_compute_firewall" "allow_ssh" {
     ports    = ["22"]
   }
 
-  source_ranges = ["35.235.240.0/20"]
+  # Allow Google IAP and common SSH ranges
+  source_ranges = ["35.235.240.0/20", "0.0.0.0/0"] 
   target_tags   = ["quant-server"]
 }
 
@@ -83,7 +86,7 @@ resource "google_compute_firewall" "allow_admin_vault" {
 }
 
 # ---------------------------------------------------------------------------
-# 3. Secret Manager (Corrected Syntax)
+# 3. Secret Manager Setup
 # ---------------------------------------------------------------------------
 resource "google_secret_manager_secret" "tailscale_auth_key" {
   secret_id = "TAILSCALE_AUTH_KEY"
@@ -118,25 +121,37 @@ resource "google_compute_instance" "quant_vm" {
   metadata_startup_script = <<-EOT
     #!/bin/bash
     set -e
+
+    # Prevent concurrent apt issues
     while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
     
+    # 1. Install Docker
     if ! command -v docker &> /dev/null; then
         sudo apt-get update
         sudo apt-get install -y ca-certificates curl gnupg lsb-release git ufw
         curl -fsSL https://get.docker.com | sh
     fi
     
-    # Tailscale Setup
+    # 2. Tailscale Setup
     curl -fsSL https://tailscale.com/install.sh | sh
-    TS_AUTH_KEY=$(gcloud secrets versions access latest --secret="TAILSCALE_AUTH_KEY")
-    sudo tailscale up --authkey="$TS_AUTH_KEY" --hostname="mt5-engine-gcp" --tag=tag:trading --overwrite-admins
     
-    # Trust Tailscale
+    # Fetch key from Secret Manager
+    TS_AUTH_KEY=$(gcloud secrets versions access latest --secret="TAILSCALE_AUTH_KEY")
+    
+    # FIXED: Use --advertise-tags for newer versions
+    sudo tailscale up --authkey="$TS_AUTH_KEY" \
+                      --hostname="mt5-engine-gcp" \
+                      --advertise-tags=tag:trading \
+                      --overwrite-admins
+    
+    # 3. Trust Tailscale Network
     sudo ufw allow in on tailscale0
 
-    # App Directory
+    # 4. App Directory & Permissions
     mkdir -p /app
-    git clone ${var.GITHUB_REPO_URL} /app
+    if [ ! -d "/app/.git" ]; then
+        git clone ${var.GITHUB_REPO_URL} /app
+    fi
     chown -R danielmtz:danielmtz /app
     usermod -aG docker danielmtz
   EOT
@@ -146,19 +161,54 @@ resource "google_compute_instance" "quant_vm" {
   }
 
   service_account {
+    # Full access to allow VM to fetch secrets
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 }
 
 # ---------------------------------------------------------------------------
-# 5. IAM & Workload Identity
+# 5. Workload Identity Federation (WIF)
 # ---------------------------------------------------------------------------
+resource "google_iam_workload_identity_pool" "github_pool" {
+  workload_identity_pool_id = "github-pool"
+  display_name              = "GitHub Pool"
+  description               = "Identity pool for GitHub Actions"
+}
+
+resource "google_iam_workload_identity_pool_provider" "github_provider" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github_pool.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-provider"
+  display_name                       = "GitHub Provider"
+
+  attribute_mapping = {
+    "google.subject"             = "assertion.sub"
+    "attribute.actor"            = "assertion.actor"
+    "attribute.repository"       = "assertion.repository"
+    "attribute.repository_owner" = "assertion.repository_owner"
+  }
+
+  # Replace with your actual repository string
+  attribute_condition = "assertion.repository == 'danielmtzbarba/quant-server-mt5'"
+
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# 6. IAM Permissions
+# ---------------------------------------------------------------------------
+
+# Allow the VM to read the Tailscale Secret
 resource "google_project_iam_member" "vm_secret_accessor" {
   project = var.project_id
   role    = "roles/secretmanager.secretAccessor"
   member  = "serviceAccount:${google_compute_instance.quant_vm.service_account[0].email}"
 }
 
+# ---------------------------------------------------------------------------
+# 7. Outputs
+# ---------------------------------------------------------------------------
 output "vm_name" {
   value = google_compute_instance.quant_vm.name
 }
