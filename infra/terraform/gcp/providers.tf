@@ -1,5 +1,4 @@
 terraform {
-  # ONE backend to rule them all (GCS is fine for both Azure and GCP states)
   backend "gcs" {
     bucket = "terraform-state-project-221a7ff0-ceb3-422b-bf0"
     prefix = "terraform/state"
@@ -19,7 +18,7 @@ terraform {
 
 # Keep your provider configurations here
 provider "google" {
-  project = var.project_id
-  region  = var.region
-  zone    = var.zone
+  project = var.PROJECT_ID
+  region  = var.REGION
+  zone    = var.ZONE
 }
