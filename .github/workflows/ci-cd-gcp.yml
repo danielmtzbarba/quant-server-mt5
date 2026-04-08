@@ -90,9 +90,6 @@ jobs:
 
       - name: Terraform Apply
         run: |
-          # Force IP recreation because IPs are regional
-          terraform taint google_compute_address.static_ip || true
-          
           terraform apply -auto-approve \
             -var="PROJECT_ID=${{ vars.GCP_PROJECT_ID }}" \
             -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}" \
@@ -222,6 +219,11 @@ jobs:
           echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env
 
           git config --global --add safe.directory /app
+          if [ ! -d "/app/.git" ]; then
+            echo "First time deploy: Cloning repository..."
+            sudo git clone https://github.com/${{ github.repository }} /app
+            sudo chown -R danielmtz:danielmtz /app
+          fi
           cd /app && git pull
           export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
           docker compose -f infra/docker/server/docker-compose.yml pull
