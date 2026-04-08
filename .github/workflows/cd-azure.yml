@@ -6,7 +6,7 @@ on:
     paths:
       - "infra/docker/trading_engine/**"
       - "infra/terraform/azure/**"
-      - ".github/workflows/deploy-azure-mt5.yml"
+      - ".github/workflows/cd-azure.yml"
   workflow_dispatch:
 
 permissions:
@@ -50,6 +50,9 @@ jobs:
           GITHUB_REPO_URL: "https://github.com/${{ github.repository }}"
       - name: Terraform Apply
         run: |
+          # Force recreation of the VM to pick up the new keys and hostname
+          terraform taint azurerm_linux_virtual_machine.main || true
+          
           terraform apply -auto-approve \
             -var="AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" \
             -var="AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" \
