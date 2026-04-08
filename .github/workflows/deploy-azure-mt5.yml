@@ -103,36 +103,36 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-- name: Wait for Azure VM & Resolve IP
+      - name: Wait for Azure VM & Resolve IP
         run: |
           echo "Polling Target VM on Tailnet..."
           timeout 300s bash -c 'while ! ping -c 1 mt5-engine-azure >/dev/null 2>&1; do echo "Waiting for MagicDNS propagation..."; sleep 10; done'
           echo "Target is reachable!"
-          
+
           # Translate the MagicDNS name to the 100.x.x.x IP
           TS_IP=$(tailscale ip -4 mt5-engine-azure)
           echo "Resolved IP: $TS_IP"
-          
+
           # Save the IP to a GitHub Environment Variable
           echo "VM_IP=$TS_IP" >> $GITHUB_ENV
 
       - name: SSH and Restart Stack
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ env.VM_IP }} # <-- Using the raw IP bypasses the Docker DNS bug
+          host: ${{ env.VM_IP }}
           username: danielmtz
           key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
           script: |
             cd /app
             git pull origin dev
             cd infra/docker/trading_engine
-            
+
             echo "MT5_LOGIN=${{ secrets.MT5_LOGIN }}" > .env
             echo "MT5_PASSWORD=${{ secrets.MT5_PASSWORD }}" >> .env
             echo "MT5_SERVER=${{ secrets.MT5_SERVER }}" >> .env
             echo "BACKEND_URL=${{ vars.BACKEND_URL }}" >> .env
             echo "TS_AUTHKEY=${{ secrets.TAILSCALE_AUTH_KEY }}" >> .env
-            
+
             docker compose pull
             docker compose up -d
             docker compose ps
