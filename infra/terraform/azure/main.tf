@@ -125,7 +125,7 @@ resource "azurerm_linux_virtual_machine" "main" {
     
     # 4. Login to Tailscale (Corrected Flag)
     tailscale up --authkey=${var.TAILSCALE_AUTH_KEY} \
-                 --hostname=mt5-vm-azure \
+                 --hostname=mt5-engine-azure \
                  --advertise-tags=tag:trading 
 
     # 5. Configure Firewall (UFW)
@@ -135,7 +135,14 @@ resource "azurerm_linux_virtual_machine" "main" {
     ufw allow 8086/tcp
     ufw --force enable
 
-    # 6. Set up project directories
+    # 6. Ensure SSH key is authorized (Manual backup for the native injection)
+    mkdir -p /home/danielmtz/.ssh
+    echo "${var.SSH_PUBLIC_KEY}" >> /home/danielmtz/.ssh/authorized_keys
+    chown -R danielmtz:danielmtz /home/danielmtz/.ssh
+    chmod 700 /home/danielmtz/.ssh
+    chmod 600 /home/danielmtz/.ssh/authorized_keys
+
+    # 7. Set up project directories
     mkdir -p /app
     chown -R danielmtz:danielmtz /app
   EOT
