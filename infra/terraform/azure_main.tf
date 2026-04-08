@@ -125,8 +125,7 @@ resource "azurerm_linux_virtual_machine" "main" {
     # 4. Login to Tailscale (Corrected Flag)
     tailscale up --authkey=${var.TAILSCALE_AUTH_KEY} \
                  --hostname=mt5-vm-azure \
-                 --advertise-tags=tag:trading \
-                 --overwrite-admins
+                 --advertise-tags=tag:trading 
 
     # 5. Configure Firewall (UFW)
     ufw allow in on tailscale0

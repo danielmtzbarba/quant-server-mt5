@@ -126,8 +126,7 @@ resource "google_compute_instance" "quant_vm" {
     # FIXED: Use --advertise-tags for newer versions
     sudo tailscale up --authkey="$TS_AUTH_KEY" \
                       --hostname="mt5-engine-gcp" \
-                      --advertise-tags=tag:trading \
-                      --overwrite-admins
+                      --advertise-tags=tag:trading 
     
     # 3. Trust Tailscale Network
     sudo ufw allow in on tailscale0
