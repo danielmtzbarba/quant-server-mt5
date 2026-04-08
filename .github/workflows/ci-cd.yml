@@ -1,4 +1,4 @@
-name: CI/CD (Master Pipeline)
+name: CI/CD (GCP Server)
 
 on:
   push:
