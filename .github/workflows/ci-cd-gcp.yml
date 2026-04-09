@@ -7,7 +7,7 @@ on:
     paths-ignore:
       - "infra/terraform/azure/**"
       - "infra/docker/trading_engine/**"
-      - ".github/workflows/deploy-azure-mt5.yml"
+      - ".github/workflows/cd-azure.yml"
   pull_request:
     branches: ["**"]
   workflow_dispatch:
@@ -241,7 +241,7 @@ jobs:
             core_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/ || echo "000")
             exec_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8002/ || echo "000")
             msg_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8003/ || echo "000")
-            
+
             if [[ "$core_ok" != "000" && "$exec_ok" != "000" && "$msg_ok" != "000" ]]; then
               echo "--------------------------------------------------------"
               echo "SUCCESS: All services are UP and responding!"
