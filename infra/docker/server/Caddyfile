@@ -1,6 +1,9 @@
-quant.danielmtzbarba.com {
+{
+    # Highly recommended: provide your email for SSL expiration alerts
     email danielmtz.dev@gmail.com
+}
 
+quant.danielmtzbarba.com {
     # 1. THE HEALTH BRIDGE: For external status checks
     handle /health* {
         reverse_proxy messaging_service:8003
