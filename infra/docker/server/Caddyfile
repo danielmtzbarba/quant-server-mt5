@@ -1,9 +1,6 @@
-{
-    # Highly recommended: provide your email for SSL expiration alerts
-    email danielmtz.dev@gmail.com
-}
-
 quant.danielmtzbarba.com {
+    email danielmtz.dev@gmail.com
+
     # 1. THE HEALTH BRIDGE: For external status checks
     handle /health* {
         reverse_proxy messaging_service:8003
@@ -18,7 +15,7 @@ quant.danielmtzbarba.com {
         # Strip /api prefix if provided (does nothing if prefix doesn't match)
         uri strip_prefix /api
         reverse_proxy messaging_service:8003
-        
+
         # STRIP ALL BROWSER HEADERS (Meta's bot requires raw text/no noise)
         header {
             -Permissions-Policy
