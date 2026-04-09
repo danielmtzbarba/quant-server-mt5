@@ -40,7 +40,7 @@ variable "AZURE_INSTANCE_NAME" {
 variable "AZURE_VM_SIZE" {
   description = "The size of the Azure VM."
   type        = string
-  default     = "Standard_B2ts_v2"
+  default     = "Standard_B1ms"
 }
 
 variable "TAILSCALE_AUTH_KEY" {
@@ -63,5 +63,3 @@ variable "ADMIN_IP" {
   description = "Whitelisted IP address for restricted ports and SSH access."
   type        = string
 }
-
-
