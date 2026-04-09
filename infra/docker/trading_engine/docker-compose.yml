@@ -18,12 +18,12 @@ services:
       - DOCKER_INFLUXDB_INIT_BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET}
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
     volumes:
-      - influxdb-data:/var/lib/influxdb2
+      - influxdb_data:/var/lib/influxdb2
 
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 350M
     ports:
     - "8086:8086"
 
