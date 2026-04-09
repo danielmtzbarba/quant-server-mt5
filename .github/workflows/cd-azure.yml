@@ -117,46 +117,55 @@ jobs:
 
       - name: SSH and Restart Stack
         run: |
+          # 1. Setup SSH Key
           mkdir -p ~/.ssh
           echo "${{ secrets.AZURE_SSH_PRIVATE_KEY }}" > ~/.ssh/azure_deploy_key
           chmod 600 ~/.ssh/azure_deploy_key
 
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/azure_deploy_key danielmtz@${{ env.VM_IP }} << EOF
-            # 1. Wait for Cloud-Init (ensures Docker is ready)
+          # 2. Create the .env locally on the Runner
+          # This avoids all remote Bash/YAML indentation conflicts
+          cat << EOF > .env
+          MT5_LOGIN=${{ secrets.MT5_LOGIN }}
+          MT5_PASSWORD=${{ secrets.MT5_PASSWORD }}
+          MT5_SERVER=${{ secrets.MT5_SERVER }}
+          BACKEND_URL=${{ vars.BACKEND_URL }}
+          EOF
+
+          # 3. Securely copy the .env file to the server's temp directory
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/azure_deploy_key .env danielmtz@${{ env.VM_IP }}:/tmp/.env
+
+          # 4. Execute Remote Commands
+          # We use standard quotes to avoid Bash EOF issues inside YAML
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/azure_deploy_key danielmtz@${{ env.VM_IP }} "
+            # Wait for VM to finish booting
             sudo cloud-init status --wait
 
-            # 2. Sync Repository
-            if [ ! -d "/app" ]; then
-              sudo mkdir -p /app
-              sudo chown danielmtz:danielmtz /app
-            fi
-
+            # Setup App Directory
+            sudo mkdir -p /app
+            sudo chown \$USER:\$USER /app
             cd /app
-            if [ ! -d ".git" ]; then
+
+            # Dynamic Sync Repository (Uses the branch that triggered the run)
+            if [ ! -d '.git' ]; then
               git clone https://github.com/${{ github.repository }} .
+              git checkout ${{ github.ref_name }}
             else
               git fetch origin
-              git checkout dev
-              git pull origin dev
+              git checkout ${{ github.ref_name }}
+              git pull origin ${{ github.ref_name }}
             fi
 
             cd infra/docker/trading_engine
 
-            # 3. Create .env (Injected by GitHub Actions)
-            # These MUST be indented to stay inside the 'run' block
-            cat << ENV > .env
-            MT5_LOGIN=${{ secrets.MT5_LOGIN }}
-            MT5_PASSWORD=${{ secrets.MT5_PASSWORD }}
-            MT5_SERVER=${{ secrets.MT5_SERVER }}
-            BACKEND_URL=${{ vars.BACKEND_URL }}
-            ENV
+            # Move the uploaded .env file to the correct directory
+            mv /tmp/.env .env
 
-            # 4. Deploy Stack
-            sudo docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+            # Deploy Stack securely
+            echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u '${{ github.actor }}' --password-stdin
             sudo docker compose down --remove-orphans
             sudo docker compose pull
             sudo docker compose up -d
 
-            echo "Deployment Complete. Current Container Status:"
+            echo 'Deployment Complete. Current Container Status:'
             sudo docker compose ps
-          EOF
+          "
