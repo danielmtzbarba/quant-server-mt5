@@ -143,15 +143,20 @@ jobs:
           sudo chown \$USER:\$USER /app
           cd /app
 
-          # Dynamic Sync Repository
+          # Dynamic Sync Logic
           if [ ! -d '.git' ]; then
+            echo "First time deploy: Cloning repository..."
             git clone https://github.com/${{ github.repository }} .
-            git checkout ${{ github.ref_name }}
           else
+            echo "Redeploy: Syncing with GitHub..."
             git fetch origin
-            git checkout ${{ github.ref_name }}
-            git pull origin ${{ github.ref_name }}
+            # This switches to the branch AND wipes local changes in one go
+            git checkout -B ${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
+            git clean -fd  # This removes untracked files (extra safety)
           fi
+
+          git pull
 
           cd infra/docker/trading_engine
 
@@ -162,7 +167,7 @@ jobs:
           echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u '${{ github.actor }}' --password-stdin
           sudo docker compose down --remove-orphans
           sudo docker compose pull
-          sudo docker compose up -d
+          sudo docker compose up -d --build
 
           echo 'Deployment Complete. Current Container Status:'
           sudo docker compose ps

@@ -218,20 +218,27 @@ jobs:
           echo "$EXECUTION_ENV" > /app/infra/envs/execution.env
           echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env
 
-          git config --global --add safe.directory /app
-          if [ ! -d "/app/.git" ]; then
-            echo "First time deploy: Initializing repository in /app..."
-            cd /app
-            sudo git init
-            sudo git remote add origin https://github.com/${{ github.repository }}
-            sudo git fetch origin
-            sudo git checkout -f main
-            sudo chown -R danielmtz:danielmtz /app
+          cd /app
+
+          # Dynamic Sync Logic
+          if [ ! -d '.git' ]; then
+            echo "First time deploy: Cloning repository..."
+            git clone https://github.com/${{ github.repository }} .
+          else
+            echo "Redeploy: Syncing with GitHub..."
+            git fetch origin
+            # This switches to the branch AND wipes local changes in one go
+            git checkout -B ${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
+            git clean -fd  # This removes untracked files (extra safety)
           fi
-          cd /app && git pull
+
+          git pull
           export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
+
+          docker compose down --remove-orphans
           docker compose -f infra/docker/server/docker-compose.yml pull
-          docker compose -f infra/docker/server/docker-compose.yml up -d
+          docker compose -f infra/docker/server/docker-compose.yml up -d --build
           docker compose -f infra/docker/server/docker-compose.yml restart caddy
 
           # 4. Success Verification (Health Check)
