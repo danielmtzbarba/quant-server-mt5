@@ -156,6 +156,8 @@ jobs:
             git clean -fd  # This removes untracked files (extra safety)
           fi
 
+          git pull
+
           cd infra/docker/trading_engine
 
           # Move the uploaded .env file to the correct directory
