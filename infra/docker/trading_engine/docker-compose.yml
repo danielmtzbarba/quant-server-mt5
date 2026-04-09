@@ -1,47 +1,28 @@
 services:
-  tailscale-mt5:
-    image: tailscale/tailscale:latest
-    container_name: tailscale_mt5
-    hostname: mt5-engine-azure # This is the name the bots use
-    environment:
-      - TS_AUTHKEY=${TS_AUTHKEY}
-      - TS_EXTRA_ARGS=--tag=tag:trading --overwrite-admins
-      - TS_STATEFUL_CONFIG=true
-    volumes:
-      - tailscale_state:/var/lib/tailscale
-      - /dev/net/tun:/dev/net/tun
-    cap_add:
-      - net_admin
-      - sys_module
-    restart: unless-stopped
-
   mt5-engine:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/mt5-engine:latest
     container_name: mt5_engine
-    network_mode: service:tailscale-mt5 # Joins the Tailscale network
-    depends_on:
-      - tailscale-mt5
     env_file: .env
     restart: unless-stopped
+    ports:
+    - "8000:8000"
 
   influxdb-mt5:
     image: influxdb:2.7
     container_name: influxdb_mt5
-    network_mode: service:tailscale-mt5 # Joins the Tailscale network
-    depends_on:
-      - tailscale-mt5
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_ORG=danielmtz
       - DOCKER_INFLUXDB_INIT_BUCKET=tradedb
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_TOKEN}
     volumes:
-      - influxdb_data:/var/lib/influxdb2
+      - influxdb_data:/var/lib/influxdb
     deploy:
       resources:
         limits:
           memory: 512M
+    ports:
+    - "8086:8086"
 
 volumes:
-  tailscale_state:
   influxdb_data:

@@ -121,31 +121,44 @@ jobs:
           echo "${{ secrets.AZURE_SSH_PRIVATE_KEY }}" > ~/.ssh/azure_deploy_key
           chmod 600 ~/.ssh/azure_deploy_key
 
-          # Use a heredoc without quotes to allow GitHub variable expansion
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/azure_deploy_key danielmtz@${{ env.VM_IP }} << EOF
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/azure_deploy_key danielmtz@${{ env.VM_IP }} << 'EOF'
+            # 1. Wait for Cloud-Init to finish (crucial for Docker to be ready)
             sudo cloud-init status --wait
             
-            # Navigate to app and update
-            if [ ! -d "/app" ]; then sudo mkdir -p /app && sudo chown danielmtz:danielmtz /app; fi
-            cd /app
-            if [ ! -d ".git" ]; then
-              git clone https://github.com/${{ github.repository }} .
+            # 2. Fix Docker permissions if they haven't kicked in
+            if ! groups | grep -q docker; then
+              sudo usermod -aG docker $USER
+              # This allows the rest of the script to run with docker privileges without logging out
+              newgrp docker << 'EON'
             fi
+
+            cd /app
             git fetch origin
             git checkout dev
             git pull origin dev
             
             cd infra/docker/trading_engine
             
-            # Create .env file with secrets
-            echo "MT5_LOGIN=${{ secrets.MT5_LOGIN }}" > .env
-            echo "MT5_PASSWORD=${{ secrets.MT5_PASSWORD }}" >> .env
-            echo "MT5_SERVER=${{ secrets.MT5_SERVER }}" >> .env
-            echo "BACKEND_URL=${{ vars.BACKEND_URL }}" >> .env
+            # Create .env file
+            cat << ENV > .env
+            MT5_LOGIN=${{ secrets.MT5_LOGIN }}
+            MT5_PASSWORD=${{ secrets.MT5_PASSWORD }}
+            MT5_SERVER=${{ secrets.MT5_SERVER }}
+            BACKEND_URL=${{ vars.BACKEND_URL }}
+            ENV
             
-            # Docker commands
+            # 3. Explicitly use 'sudo' for Docker if newgrp fails, and check logs
             sudo docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+            sudo docker compose down --remove-orphans
             sudo docker compose pull
             sudo docker compose up -d
+            
+            echo "Checking container status..."
             sudo docker compose ps
+            
+            # Diagnostic: If ps is empty, show logs
+            if [ -z "$(sudo docker compose ps -q)" ]; then
+              echo "Error: Containers failed to start. Last 20 lines of logs:"
+              sudo docker compose logs --tail=20
+            fi
           EOF
