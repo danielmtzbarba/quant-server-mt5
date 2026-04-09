@@ -28,7 +28,7 @@ variable "AZURE_RESOURCE_GROUP" {
 variable "AZURE_LOCATION" {
   description = "The Azure region for the deployment."
   type        = string
-  default     = "westeurope"
+  default     = "denmarkeast"
 }
 
 variable "AZURE_INSTANCE_NAME" {

@@ -1,4 +1,4 @@
-# Trigger Workflow (Upsizing)
+# Trigger Workflow (change of region)
 name: Deploy MT5 Engine (Azure)
 
 on:
