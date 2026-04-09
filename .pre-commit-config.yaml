@@ -3,11 +3,39 @@ repos:
     rev: v0.3.0
     hooks:
       - id: ruff
-        args: [ --fix ]
-        stages: [ pre-push, pre-commit ]
+        args: [--fix]
+        stages: [pre-push, pre-commit]
       - id: ruff-format
         # Removed --check to allow silent fixing of formatting issues
-        stages: [ pre-push, pre-commit ]
+        stages: [pre-push, pre-commit]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+        name: Validate YAML Files
+        description: Ensures YAML files are syntactically correct.
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.1
+    hooks:
+      - id: actionlint
+        name: Lint GitHub Actions Workflows
+        description: Specifically checks workflow logic/syntax in .github/workflows/
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.92.1
+    hooks:
+      - id: terraform_fmt
+        name: Terraform Format
+        files: ^infra/terraform/(gcp|azure)/
+      - id: terraform_validate
+        name: Terraform Validate
+        files: ^infra/terraform/(gcp|azure)/
+        args:
+          - --args=-json
 
   - repo: local
     hooks:
@@ -17,4 +45,4 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        stages: [ pre-push ]
+        stages: [pre-push]

@@ -1,4 +1,99 @@
-deploy:
+name: Deploy MT5 Engine (Azure)
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "infra/docker/trading_engine/**"
+      - "infra/terraform/azure/**"
+      - ".github/workflows/cd-azure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  terraform:
+    name: Azure Infrastructure
+    runs-on: ubuntu-latest
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+    defaults:
+      run:
+        working-directory: infra/terraform/azure
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Import (Self-Healing)
+        run: ./import.sh
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_LOCATION: "westeurope"
+          AZURE_VM_SIZE: "Standard_B2ts_v2"
+          ADMIN_IP: ${{ secrets.ADMIN_IP }}
+          SSH_PUBLIC_KEY: ${{ secrets.AZURE_SSH_PUBLIC_KEY }}
+          GITHUB_REPO_URL: "https://github.com/${{ github.repository }}"
+
+      - name: Terraform Apply
+        run: |
+          terraform apply -auto-approve \
+            -var="AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var="AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" \
+            -var="AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -var="AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" \
+            -var="AZURE_RESOURCE_GROUP=${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -var="AZURE_LOCATION=westeurope" \
+            -var="AZURE_VM_SIZE=Standard_B2ts_v2" \
+            -var="ADMIN_IP=${{ secrets.ADMIN_IP }}" \
+            -var="SSH_PUBLIC_KEY=${{ secrets.AZURE_SSH_PUBLIC_KEY }}" \
+            -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}" \
+            -var="TAILSCALE_AUTH_KEY=${{ secrets.TAILSCALE_AUTH_KEY }}"
+
+  build-and-push:
+    name: Build MT5 Engine
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./infra/docker/trading_engine
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/mt5-engine:latest
+            ghcr.io/${{ github.repository_owner }}/mt5-engine:${{ github.sha }}
+          cache-from: type=gha,scope=mt5-engine
+          cache-to: type=gha,mode=max,scope=mt5-engine
+
+  deploy:
     name: Deploy to Azure
     needs: build-and-push
     runs-on: ubuntu-latest
@@ -26,13 +121,12 @@ deploy:
           echo "${{ secrets.AZURE_SSH_PRIVATE_KEY }}" > ~/.ssh/azure_deploy_key
           chmod 600 ~/.ssh/azure_deploy_key
 
-          # We use an unquoted EOF here so GitHub can inject the ${{ secrets }}
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/azure_deploy_key danielmtz@${{ env.VM_IP }} << EOF
-            # 1. Wait for Cloud-Init (ensures Docker is fully installed)
+            # 1. Wait for Cloud-Init (ensures Docker is ready)
             sudo cloud-init status --wait
-            
+
             # 2. Sync Repository
-            if [ ! -d "/app" ]; then 
+            if [ ! -d "/app" ]; then
               sudo mkdir -p /app
               sudo chown danielmtz:danielmtz /app
             fi
@@ -45,25 +139,24 @@ deploy:
               git checkout dev
               git pull origin dev
             fi
-            
+
             cd infra/docker/trading_engine
-            
-            # 3. Create .env file
-            # These are injected by GitHub before the command is sent to the VM
+
+            # 3. Create .env (Injected by GitHub Actions)
+            # These MUST be indented to stay inside the 'run' block
             cat << ENV > .env
-MT5_LOGIN=${{ secrets.MT5_LOGIN }}
-MT5_PASSWORD=${{ secrets.MT5_PASSWORD }}
-MT5_SERVER=${{ secrets.MT5_SERVER }}
-BACKEND_URL=${{ vars.BACKEND_URL }}
-ENV
-            
-            # 4. Deployment
-            # We use sudo for docker to avoid 'newgrp' permission issues
+            MT5_LOGIN=${{ secrets.MT5_LOGIN }}
+            MT5_PASSWORD=${{ secrets.MT5_PASSWORD }}
+            MT5_SERVER=${{ secrets.MT5_SERVER }}
+            BACKEND_URL=${{ vars.BACKEND_URL }}
+            ENV
+
+            # 4. Deploy Stack
             sudo docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
-            sudo docker compose pull
             sudo docker compose down --remove-orphans
+            sudo docker compose pull
             sudo docker compose up -d
-            
-            echo "Checking container status..."
+
+            echo "Deployment Complete. Current Container Status:"
             sudo docker compose ps
           EOF
