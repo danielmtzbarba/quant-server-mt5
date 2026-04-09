@@ -49,7 +49,7 @@ MT5_PATH = r"C:\Program Files\MetaTrader 5\terminal64.exe"
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://mt5-engine-gcp:8002")
 
 # InfluxDB Configuration
-INFLUX_URL = os.environ.get("INFLUX_URL", "http://localhost:8086")
+INFLUX_URL = "http://localhost:8086"
 INFLUX_TOKEN = os.environ.get(
     "INFLUX_TOKEN",
     "X3jsB_yeGU3Il5BINWNYNicYDQ7dkhjbG4PHUAN6yt9XuJHaN8Bj7ROyQr81h-Vwh3Qw6qHNMLF2wylXdaEnFQ==",

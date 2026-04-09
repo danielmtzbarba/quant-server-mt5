@@ -40,7 +40,7 @@ resource "google_compute_firewall" "allow_ssh" {
   }
 
   # Allow Google IAP and common SSH ranges
-  source_ranges = ["35.235.240.0/20", "0.0.0.0/0"] 
+  source_ranges = ["35.235.240.0/20", "0.0.0.0/0"]
   target_tags   = ["quant-server"]
 }
 
@@ -51,6 +51,12 @@ resource "google_compute_firewall" "allow_web" {
   allow {
     protocol = "tcp"
     ports    = ["80", "443"]
+  }
+
+  # Add this for HTTP/3 support
+  allow {
+    protocol = "udp"
+    ports    = ["443"]
   }
 
   source_ranges = ["0.0.0.0/0"]
@@ -109,21 +115,21 @@ resource "google_compute_instance" "quant_vm" {
 
     # Prevent concurrent apt issues
     while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
-    
+
     # 1. Install Docker
     if ! command -v docker &> /dev/null; then
         sudo apt-get update
         sudo apt-get install -y ca-certificates curl gnupg lsb-release git ufw
         curl -fsSL https://get.docker.com | sh
     fi
-    
+
     # 2. Tailscale Setup
     curl -fsSL https://tailscale.com/install.sh | sh
-    
+
     sudo tailscale up --authkey="${var.TAILSCALE_AUTH_KEY}" \
                       --hostname="mt5-engine-gcp" \
-                      --advertise-tags=tag:trading 
-    
+                      --advertise-tags=tag:trading
+
     # 3. Trust Tailscale Network
     sudo ufw allow in on tailscale0
 

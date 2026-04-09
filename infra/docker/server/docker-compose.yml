@@ -79,6 +79,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "443:443/udp" # Match the Terraform UDP change
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
