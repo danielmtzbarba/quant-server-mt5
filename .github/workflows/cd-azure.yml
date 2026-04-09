@@ -43,10 +43,12 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_LOCATION: "denmarkeast"
+          AZURE_VM_SIZE: "Standard_B1ms"
           ADMIN_IP: ${{ secrets.ADMIN_IP }}
           SSH_PUBLIC_KEY: ${{ secrets.AZURE_SSH_PUBLIC_KEY }}
           GITHUB_REPO_URL: "https://github.com/${{ github.repository }}"
-          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
 
       - name: Terraform Apply
         run: |
@@ -55,10 +57,13 @@ jobs:
             -var="AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" \
             -var="AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
             -var="AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" \
-            -var="TAILSCALE_AUTH_KEY=${{ secrets.TAILSCALE_AUTH_KEY }}" \
+            -var="AZURE_RESOURCE_GROUP=${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -var="AZURE_LOCATION=denmarkeast" \
+            -var="AZURE_VM_SIZE=Standard_B1ms" \
             -var="ADMIN_IP=${{ secrets.ADMIN_IP }}" \
             -var="SSH_PUBLIC_KEY=${{ secrets.AZURE_SSH_PUBLIC_KEY }}" \
-            -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}"
+            -var="GITHUB_REPO_URL=https://github.com/${{ github.repository }}" \
+            -var="TAILSCALE_AUTH_KEY=${{ secrets.TAILSCALE_AUTH_KEY }}"
 
   build-and-push:
     name: Build MT5 Engine

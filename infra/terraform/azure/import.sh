@@ -1,25 +1,9 @@
 #!/bin/bash
 set -e
 
-# Extract variables from terraform.tfvars if not provided in environment
-get_tf_var() {
-    local var_name=$1
-    local env_val=$(eval echo "\$$var_name")
-    if [ -n "$env_val" ]; then
-        echo "$env_val"
-    else
-        grep -oP "${var_name}\s*=\s*\"\K[^\"]+" terraform.tfvars || echo ""
-    fi
-}
-
-AZURE_SUBSCRIPTION_ID=$(get_tf_var "AZURE_SUBSCRIPTION_ID")
-AZURE_RESOURCE_GROUP=$(get_tf_var "AZURE_RESOURCE_GROUP")
-AZURE_LOCATION=$(get_tf_var "AZURE_LOCATION")
-AZURE_VM_SIZE=$(get_tf_var "AZURE_VM_SIZE")
-
 # Variable check
 if [ -z "$AZURE_SUBSCRIPTION_ID" ] || [ -z "$AZURE_RESOURCE_GROUP" ]; then
-    echo "Error: AZURE_SUBSCRIPTION_ID and AZURE_RESOURCE_GROUP must be set (either in env or terraform.tfvars)."
+    echo "Error: AZURE_SUBSCRIPTION_ID and AZURE_RESOURCE_GROUP must be set."
     exit 1
 fi
 
