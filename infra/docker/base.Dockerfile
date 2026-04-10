@@ -15,7 +15,7 @@ COPY templates/ ./templates/
 
 # Run the 200MB+ installation step once.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync  --no-dev
 
 # Stage 2: Optimized Runtime Base (The Child Parent)
 # This is the image that your microservices will actually use as their base.

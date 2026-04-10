@@ -1,0 +1,20 @@
+[project]
+name = "sync-service"
+version = "0.1.0"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "httpx",
+    "influxdb-client",
+    "pandas",
+    "plotly",
+    "jinja2",
+    "pydantic-settings",
+    "rich",
+    "common-logging",
+    "common-events",
+]
+
+[tool.uv.sources]
+common-logging = { workspace = true }
+common-events = { workspace = true }

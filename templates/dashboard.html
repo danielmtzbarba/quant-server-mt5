@@ -128,7 +128,7 @@
             <div class="signal-tag">
                 STRATEGY: <strong>{{ latest_signal.action }}</strong>
             </div>
-            
+
             {% if latest_signal.action != 'HOLD' %}
             <div class="signal-levels">
                 <div>ENTRY: <strong>{{ latest_signal.entry_price|round(5) }}</strong></div>
@@ -143,7 +143,7 @@
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-value">{{ total_bars }}</div>
-                <div class="stat-label">Total Bars (M1)</div>
+                <div class="stat-label">Total Bars (15m)</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" style="color: var(--primary);">{{ last_price }}</div>

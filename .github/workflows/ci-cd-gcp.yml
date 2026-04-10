@@ -5,9 +5,10 @@ on:
   push:
     branches: ["**"]
     paths-ignore:
-      - "infra/terraform/azure/**"
-      - "infra/docker/trading_engine/**"
       - ".github/workflows/cd-azure.yml"
+      - "infra/terraform/azure/**"
+      - "services/mt5_service/**"
+      - "infra/docker/trading_engine/**"
   pull_request:
     branches: ["**"]
   workflow_dispatch:

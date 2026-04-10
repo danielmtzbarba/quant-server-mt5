@@ -5,9 +5,10 @@ on:
   push:
     branches: [main, dev]
     paths:
-      - "infra/docker/trading_engine/**"
-      - "infra/terraform/azure/**"
       - ".github/workflows/cd-azure.yml"
+      - "infra/terraform/azure/**"
+      - "infra/docker/trading_engine/docker-compose.yml"
+      - "services/mt5_service/**"
   workflow_dispatch:
 
 permissions:
@@ -66,7 +67,7 @@ jobs:
             -var="TAILSCALE_AUTH_KEY=${{ secrets.TAILSCALE_AUTH_KEY }}"
 
   build-and-push:
-    name: Build MT5 Engine
+    name: Build MT5 Service
     needs: terraform
     runs-on: ubuntu-latest
     steps:
@@ -86,13 +87,13 @@ jobs:
       - name: Build and Push
         uses: docker/build-push-action@v5
         with:
-          context: ./infra/docker/trading_engine
+          context: ./services/mt5_service
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/mt5-engine:latest
-            ghcr.io/${{ github.repository_owner }}/mt5-engine:${{ github.sha }}
-          cache-from: type=gha,scope=mt5-engine
-          cache-to: type=gha,mode=max,scope=mt5-engine
+            ghcr.io/${{ github.repository_owner }}/mt5-service:latest
+            ghcr.io/${{ github.repository_owner }}/mt5-service:${{ github.sha }}
+          cache-from: type=gha,scope=mt5-service
+          cache-to: type=gha,mode=max,scope=mt5-service
 
   deploy:
     name: Deploy to Azure
@@ -156,12 +157,10 @@ jobs:
             git clean -fd  # This removes untracked files (extra safety)
           fi
 
-          git pull
+          # Move the uploaded .env file to the correct directory
+          mv /tmp/.env services/mt5_service/.env
 
           cd infra/docker/trading_engine
-
-          # Move the uploaded .env file to the correct directory
-          mv /tmp/.env .env
 
           # Deploy Stack securely
           echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u '${{ github.actor }}' --password-stdin

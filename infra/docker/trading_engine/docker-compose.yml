@@ -1,15 +1,34 @@
 services:
-  mt5-engine:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/mt5-engine:latest
-    container_name: mt5_engine
+  mt5-service:
+    build:
+      context: ../../../services/mt5_service
+      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/mt5-service:latest
+    container_name: mt5_service
     network_mode: "host"
     env_file: .env
     restart: unless-stopped
     environment:
-      - WINEDEBUG=-all          # This silences the Toolbar errors
-      - PYTHONUNBUFFERED=1      # Ensures your Python logs show up immediately
-      - ALSA_CARD=None          # Helps suppress some ALSA noise
+      - WINEDEBUG=-all
+      - PYTHONUNBUFFERED=1
+      - ALSA_CARD=None
       - WINEDLLOVERRIDES=mciavi32,mciseq,mciwave,winealsa.drv,winepulse.drv=d
+
+  sync-service:
+    build:
+      context: ../../../
+      dockerfile: services/sync_service/Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/sync-service:latest
+    container_name: sync_service
+    network_mode: "host"
+    env_file: .env
+    environment:
+      - MT5_SERVICE_URL=http://localhost:8000
+      - INFLUX_URL=http://localhost:8086
+    depends_on:
+      - mt5-service
+      - influxdb-mt5
+    restart: unless-stopped
 
   influxdb-mt5:
     image: influxdb:2.7
@@ -23,13 +42,12 @@ services:
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
     volumes:
       - influxdb_data:/var/lib/influxdb2
-
     deploy:
       resources:
         limits:
           memory: 350M
     ports:
-    - "8086:8086"
+      - "8086:8086"
 
 volumes:
   influxdb_data:

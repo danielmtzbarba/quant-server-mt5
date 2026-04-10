@@ -33,7 +33,7 @@ RUN wget -q https://bootstrap.pypa.io/pip/3.8/get-pip.py && \
     rm get-pip.py
 
 # 6. Install MT5 + FastAPI + httpx
-RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install MetaTrader5 fastapi uvicorn httpx influxdb-client
+RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install MetaTrader5 fastapi uvicorn httpx
 
 
 # 7. Pull the pre-installed MT5 portable archive from GitHub Releases
@@ -44,9 +44,9 @@ RUN mkdir -p "/root/.wine/drive_c/Program Files/" && \
     tar -xzf /tmp/mt5.tar.gz -C "/root/.wine/drive_c/Program Files/" && \
     rm /tmp/mt5.tar.gz
 
-# 7. Copy Application layers
+# 9. Copy Application layers
 WORKDIR /app
-COPY app.py /app/app.py
+COPY app /app/app
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 

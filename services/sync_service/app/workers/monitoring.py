@@ -1,0 +1,88 @@
+import asyncio
+import httpx
+from app.core.config import settings
+from app.core.logging import logger
+from app.services.mt5_client import mt5_client
+
+
+class PositionMonitor:
+    def __init__(self):
+        self.active_positions = set()
+
+    async def run(self):
+        logger.info(f"Starting Position Monitor. BACKEND_URL={settings.BACKEND_URL}")
+
+        # Initialize active positions from service
+        initial_pos = await mt5_client.get_positions()
+        self.active_positions = (
+            set(p["ticket"] for p in initial_pos) if initial_pos is not None else set()
+        )
+
+        logger.info(f"Initialized with {len(self.active_positions)} positions.")
+
+        while True:
+            try:
+                if not settings.BACKEND_URL:
+                    await asyncio.sleep(5)
+                    continue
+
+                pos_list = await mt5_client.get_positions()
+                if pos_list is None:
+                    await asyncio.sleep(2)
+                    continue
+
+                current_tickets = (
+                    set(p["ticket"] for p in pos_list) if pos_list else set()
+                )
+
+                # Detect OPENED
+                opened = current_tickets - self.active_positions
+                for t in opened:
+                    p = [pos for pos in pos_list if pos["ticket"] == t][0]
+                    payload = {
+                        "ticket": t,
+                        "status": "OPENED",
+                        "symbol": p["symbol"],
+                        "type": p["type"],
+                        "volume": p["volume"],
+                        "price": p["price_open"],
+                    }
+                    await self._notify_backend("opened", payload)
+
+                # Detect CLOSED
+                closed = self.active_positions - current_tickets
+                for t in closed:
+                    # NOTE: Basic closing info. Detailed profit info would require history poll if needed.
+                    payload = {
+                        "ticket": t,
+                        "status": "CLOSED",
+                        "profit": 0.0,
+                    }  # Simplified
+                    await self._notify_backend("closed", payload)
+
+                self.active_positions = current_tickets
+                await asyncio.sleep(5)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Exception in position_monitor: {e}")
+                await asyncio.sleep(5)
+
+    async def _notify_backend(self, event_type: str, payload: dict):
+        async with httpx.AsyncClient() as client:
+            url = f"{settings.BACKEND_URL}/position_{event_type}?mt5_login={settings.MT5_LOGIN}"
+            try:
+                await client.post(url, json=payload, timeout=5)
+                logger.info(
+                    f"Webhook pushed: {event_type.upper()} ticket {payload['ticket']}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to webhook {event_type.upper()}: {e}")
+
+
+monitor = PositionMonitor()
+
+
+async def position_monitor_task():
+    await monitor.run()

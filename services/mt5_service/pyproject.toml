@@ -1,0 +1,13 @@
+[project]
+name = "mt5-service"
+version = "0.1.0"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "httpx",
+    "influxdb-client",
+    "MetaTrader5",
+]
+
+[tool.uv.sources]
+# Add workspace dependencies if needed later
