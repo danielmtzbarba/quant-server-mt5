@@ -1,4 +1,4 @@
 [project]
 name = "common-logging"
 version = "0.1.0"
-dependencies = ["rich"]
+dependencies = ["rich", "structlog"]

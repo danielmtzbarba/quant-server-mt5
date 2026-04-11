@@ -1,7 +1,7 @@
 from . import utils
-from common_logging import setup_logging
+import structlog
 
-logger = setup_logging("messaging-service", tag="MESSAGING", color="blue")
+logger = structlog.get_logger(__name__)
 
 
 class Message(object):
@@ -36,7 +36,7 @@ class Message(object):
                 self._is_valid_message = False
 
         except Exception as e:
-            logger.error(f"Error parsing WhatsApp payload: {e}")
+            logger.error("message_parse_failed", error=str(e), payload=self._request)
             self._is_valid_message = False
 
     @property

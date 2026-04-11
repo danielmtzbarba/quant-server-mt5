@@ -11,11 +11,11 @@ from ..models.schemas import (
     TradeErrorEvent,
 )
 from ..infra.visualization import MarketVisualizer
-import logging
-import os
+import structlog
 from typing import Any
+import os
 
-logger = logging.getLogger("sync-service")
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["Sync"])
 
@@ -29,19 +29,19 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 @router.get("/sync_status")
 async def get_sync_status(symbol: str = Query(...)):
-    logger.info(f"SYNC: GET Status ({symbol})")
+    logger.info("db_read", action="sync_status", symbol=symbol)
     return sync_service.get_sync_status(symbol)
 
 
 @router.get("/check_repair")
 async def check_repair(symbol: str = Query(...)):
-    logger.info(f"SYNC: CHECK Repair ({symbol})")
+    logger.info("command_received", action="check_repair", symbol=symbol)
     return sync_service.check_repair(symbol)
 
 
 @router.post("/verify_history")
 async def verify_history(payload: TradeDBPayload):
-    logger.info(f"SYNC: VERIFY History ({payload.symbol})")
+    logger.info("command_received", action="verify_history", symbol=payload.symbol)
     return sync_service.verify_history(
         payload.symbol, payload.gmt_offset, [c.model_dump() for c in payload.candles]
     )
@@ -49,7 +49,7 @@ async def verify_history(payload: TradeDBPayload):
 
 @router.post("/api/backfill")
 async def backfill_history(symbol: str, days: int = 7):
-    logger.info(f"SYNC: BACKFILL {symbol} for {days} days")
+    logger.info("command_received", action="backfill_history", symbol=symbol, days=days)
     success = await sync_service.backfill_history(symbol, days)
     if success:
         return {"status": "success"}
@@ -59,7 +59,12 @@ async def backfill_history(symbol: str, days: int = 7):
 @router.post("/api/order")
 async def proxy_order(trade: TradeRequest):
     """Proxy order requests to the actual MT5 service."""
-    logger.info(f"PROXY: ORDER {trade.action} on {trade.symbol}")
+    logger.info(
+        "command_received",
+        action="proxy_order",
+        symbol=trade.symbol,
+        order_action=trade.action,
+    )
     return await mt5_client.place_order(trade.model_dump())
 
 
@@ -76,7 +81,7 @@ async def get_mt5_positions():
 @router.post("/report")
 async def mt5_report(request: Request, mt5_login: str = Query(...)):
     """Complete position report from MT5."""
-    logger.info(f"SYNC: REPORT for {mt5_login}")
+    logger.info("command_received", action="mt5_report", mt5_login=mt5_login)
     data = await request.json()
     await trading_service.handle_report(mt5_login, data)
     return {"status": "success"}
@@ -85,7 +90,7 @@ async def mt5_report(request: Request, mt5_login: str = Query(...)):
 @router.post("/signal")
 async def receive_signal(signal: Any):  # Or use TradingSignal schema
     """Entry point for external signals."""
-    logger.info("SYNC: SIGNAL received")
+    logger.info("command_received", action="signal_received")
     from common_events import TradingSignal
 
     if isinstance(signal, dict):
@@ -98,7 +103,12 @@ async def receive_signal(signal: Any):  # Or use TradingSignal schema
 
 @router.post("/position_event")
 async def position_event(event: PositionEvent, mt5_login: str = Query(...)):
-    logger.info(f"SYNC: EVENT {event.status} for {mt5_login}")
+    logger.info(
+        "command_received",
+        action="position_event",
+        status=event.status,
+        mt5_login=mt5_login,
+    )
     if event.status == "OPENED":
         await trading_service.handle_position_opened(mt5_login, event)
     elif event.status == "CLOSED":

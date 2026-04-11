@@ -4,13 +4,22 @@ from fastapi.responses import PlainTextResponse
 from .core.bot_service import bot_service
 from .core.config import settings
 from .core.trading_notifications import notification_manager
-from common_logging import setup_logging
+from common_logging import (
+    setup_logging,
+    CorrelationIdMiddleware,
+    RequestLoggingMiddleware,
+)
 from .infra.whatsapp.message import Message
 
 # Increase detail for the main logger as well
-logger = setup_logging("messaging-service", tag="MESSAGING", color="blue")
+# Setup structured logging
+logger = setup_logging("messaging-service")
 
 app = FastAPI(title="Messaging Service", redirect_slashes=False)
+
+# Add structured logging middlewares
+app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
 
 @app.get("/health")
@@ -45,12 +54,13 @@ async def verify_challenge(request: Request):
 @app.post("/webhook")
 async def receive_message(request: Request):
     payload = await request.json()
+    logger.info("webhook_received", payload=payload)
     msg = Message(payload)
     if msg.is_message:
-        logger.info(f"User ➔ Server ({msg.number})")
+        logger.info("message_parsed", phone=msg.number, text=msg.text)
         await bot_service.process_request(msg)
     elif msg.is_read:
-        logger.debug("Read Check ✅")
+        logger.debug("message_read_check")
     return PlainTextResponse("SUCCESS")
 
 

@@ -1,6 +1,6 @@
 import httpx
 import asyncio
-import logging
+import structlog
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +9,7 @@ from ..models.user import User
 from ..models.auth import SignupSession
 from .config import settings
 
-logger = logging.getLogger("core-service")
+logger = structlog.get_logger(__name__)
 
 MESSAGING_SERVICE_URL = settings.MESSAGING_SERVICE_URL
 MT5_ENGINE_URL = settings.MT5_SERVICE_URL
@@ -29,7 +29,13 @@ class SignalDispatcher:
         if action == "HOLD":
             return {"status": "ignored", "reason": "HOLD action"}
 
-        logger.info(f"Broadcasting {strategy_name} {action} for {symbol}")
+        logger.info(
+            "command_received",
+            type="signal",
+            strategy=strategy_name,
+            symbol=symbol,
+            action=action,
+        )
 
         # 1. Fetch Strategy and Subscribers
         result = await db.execute(
@@ -58,7 +64,14 @@ class SignalDispatcher:
 
             await asyncio.gather(*tasks)
 
-        await db.commit()
+        try:
+            await db.commit()
+            logger.info("command_validated", status="success", count=len(subscribers))
+        except Exception as e:
+            logger.error("db_write_failed", error=str(e), action="broadcast_signal")
+            await db.rollback()
+            return {"status": "failed", "error": str(e)}
+
         return {"status": "broadcasted", "count": len(subscribers)}
 
     async def _process_user_signal(
@@ -104,6 +117,13 @@ class SignalDispatcher:
                 created_at=datetime.now(timezone.utc),
             )
             db.add(new_order)
+            logger.info(
+                "trade_intent_created",
+                user_id=user.id,
+                account=acc.account_number,
+                symbol=symbol,
+                action=action,
+            )
 
             # Dispatch to MT5 Engine
             try:

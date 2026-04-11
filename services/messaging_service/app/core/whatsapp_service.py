@@ -26,11 +26,11 @@ class WhatsAppService:
 
                 # Log outgoing messages
                 if isinstance(m_data, dict) and "to" in m_data:
-                    logger.info(f"Server ➔ User ({m_data['to']})")
+                    logger.info("message_sent", to=m_data["to"])
 
                 wa.send_message(m)
         except Exception as e:
-            logger.error(f"Failed to send message: {e}")
+            logger.error("message_send_failed", error=str(e))
 
 
 whatsapp_service = WhatsAppService()

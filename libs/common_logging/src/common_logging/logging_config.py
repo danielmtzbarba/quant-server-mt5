@@ -1,42 +1,68 @@
+import os
+import sys
 import logging
-from rich.logging import RichHandler
-from rich.console import Console
-
-# Setup rich console for consistent clean output
-console = Console()
+import structlog
+from typing import Any, Dict
 
 
-class TaggingAdapter(logging.LoggerAdapter):
-    """Prepends a colored tag to log messages."""
+def scrubber(_, __, event_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Redacts sensitive information from log events."""
+    SENSITIVE_KEYS = {
+        "password",
+        "token",
+        "auth_token",
+        "api_key",
+        "secret",
+        "credentials",
+    }
+    for key in event_dict:
+        if any(sk in key.lower() for sk in SENSITIVE_KEYS):
+            event_dict[key] = "[REDACTED]"
+    return event_dict
 
-    def process(self, msg, kwargs):
-        tag = self.extra.get("tag", "UNKN")
-        color = self.extra.get("color", "white")
-        # Ensure markup works with Rich
-        return f"[bold {color}][{tag:^9}][/] {msg}", kwargs
 
+def setup_logging(service_name: str, level: int = logging.INFO):
+    """
+    Configures structured logging for the service using the Standard Library bridge.
+    Environment variable ENV=production toggles JSON output.
+    """
+    is_production = os.getenv("ENV", "production") == "production"
 
-def setup_logging(
-    service_name: str, tag: str = "SERVICE", color: str = "white", level=logging.INFO
-):
-    """Configures centralized logging with colored tags and exhaustive silence."""
-    # Use force=True to ensure we override any internal library configurations
+    # 1. Standard Library Configuration
+    # Ensures that standard logging (like Uvicorn) also goes to stdout through structlog
     logging.basicConfig(
-        level=level,
         format="%(message)s",
-        datefmt="[%X]",
-        handlers=[
-            RichHandler(
-                rich_tracebacks=True,
-                console=console,
-                tracebacks_show_locals=True,
-                markup=True,
-            )
-        ],
-        force=True,
+        stream=sys.stdout,
+        level=level,
+        force=True,  # Ensure we override any existing config
     )
 
-    # Silence verbose third party loggers
+    # 2. Define Processors
+    processors = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        scrubber,
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+    ]
+
+    if is_production:
+        processors.append(structlog.processors.JSONRenderer())
+    else:
+        processors.append(structlog.dev.ConsoleRenderer(colors=True))
+
+    # 3. Configure structlog with the stdlib bridge
+    structlog.configure(
+        processors=processors,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+    # 4. Silence/Configure third-party loggers
     for logger_name in [
         "urllib3",
         "influxdb_client",
@@ -44,20 +70,15 @@ def setup_logging(
         "httpx",
         "sqlalchemy.engine",
         "uvicorn",
-    ]:
-        logging.getLogger(logger_name).setLevel(logging.WARNING)
-
-    # Exhaustive Uvicorn suppression
-    for uv_logger_name in [
-        "uvicorn",
         "uvicorn.access",
         "uvicorn.error",
         "uvicorn.asgi",
     ]:
-        uv_logger = logging.getLogger(uv_logger_name)
-        uv_logger.setLevel(logging.WARNING)
-        uv_logger.propagate = False
-        uv_logger.handlers = []
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.WARNING)
+        logger.propagate = False
+        # Remove any existing handlers to avoid duplicate logs (stdout handled by basicConfig)
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
 
-    base_logger = logging.getLogger(service_name)
-    return TaggingAdapter(base_logger, {"tag": tag, "color": color})
+    return structlog.get_logger(service_name)

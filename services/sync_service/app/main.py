@@ -5,7 +5,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from contextlib import asynccontextmanager
 
-from common_logging import setup_logging
+from common_logging import (
+    setup_logging,
+    CorrelationIdMiddleware,
+    RequestLoggingMiddleware,
+)
 from .core.influx_service import influx_service
 from .core.workers.monitoring import position_monitor_task
 from .core.workers.publishing import candle_publisher_task
@@ -13,7 +17,7 @@ from .core.workers.health import health_monitor_loop
 from .api.sync import router as sync_router
 
 # Setup standardized logging
-logger = setup_logging("sync-service", tag="SYNC", color="blue")
+logger = setup_logging("sync-service")
 
 # Setup Templates
 # In production (Docker), these are at /app/templates. In local dev, they are at the root.
@@ -53,6 +57,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Sync & Dashboard Service", lifespan=lifespan)
+
+# Add structured logging middlewares
+app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
 # Mount static files for dashboard (if any)
 # Note: In the container, static is at /app/static but we want it relative to this file's execution dir if running locally

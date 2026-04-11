@@ -1,10 +1,10 @@
 import asyncio
 import httpx
-import logging
+import structlog
 from ..config import settings
 from ..mt5_client import mt5_client
 
-logger = logging.getLogger("sync-service")
+logger = structlog.get_logger(__name__)
 
 
 class PositionMonitor:
@@ -12,7 +12,11 @@ class PositionMonitor:
         self.active_positions = set()
 
     async def run(self):
-        logger.info(f"Starting Position Monitor. BACKEND_URL={settings.BACKEND_URL}")
+        logger.info(
+            "worker_started",
+            worker="position_monitor",
+            backend_url=settings.BACKEND_URL,
+        )
 
         # Initialize active positions from service
         initial_pos = await mt5_client.get_positions()
@@ -28,8 +32,10 @@ class PositionMonitor:
                     await asyncio.sleep(5)
                     continue
 
+                logger.debug("mt5_poll_started")
                 pos_list = await mt5_client.get_positions()
                 if pos_list is None:
+                    logger.warning("mt5_poll_failed", reason="MT5 Service Unavailable")
                     await asyncio.sleep(2)
                     continue
 
@@ -68,7 +74,7 @@ class PositionMonitor:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Exception in position_monitor: {e}")
+                logger.error("worker_error", worker="position_monitor", error=str(e))
                 await asyncio.sleep(5)
 
     async def _notify_backend(self, event_type: str, payload: dict):
@@ -80,10 +86,14 @@ class PositionMonitor:
             try:
                 await client.post(url, params=params, json=payload, timeout=5)
                 logger.info(
-                    f"Hub relay success: {event_type.upper()} ticket {payload['ticket']}"
+                    "hub_relay_success",
+                    event_type=event_type.upper(),
+                    ticket=payload["ticket"],
                 )
             except Exception as e:
-                logger.error(f"Failed to relay {event_type.upper()} to Hub: {e}")
+                logger.error(
+                    "hub_relay_failed", event_type=event_type.upper(), error=str(e)
+                )
 
 
 monitor = PositionMonitor()

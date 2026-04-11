@@ -11,7 +11,11 @@ import os
 from sqlalchemy.ext.asyncio import AsyncSession
 from contextlib import asynccontextmanager
 
-from common_logging import setup_logging
+from common_logging import (
+    setup_logging,
+    CorrelationIdMiddleware,
+    RequestLoggingMiddleware,
+)
 from .core.config import settings
 from .infra.database import get_db
 from .repos.user_repo import UserRepository
@@ -37,9 +41,13 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Core Service...")
 
 
-logger = setup_logging("core-service", tag="CORE", color="cyan")
+logger = setup_logging("core-service")
 
 app = FastAPI(title="Core Service", lifespan=lifespan)
+
+# Add structured logging middlewares
+app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
 # Setup templates and static files (Root-relative)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -93,7 +101,7 @@ async def health_check():
 
 @app.get("/users/{phone_number}")
 async def get_user(phone_number: str, db: AsyncSession = Depends(get_db)):
-    logger.info(f"DB: GET User {phone_number}")
+    logger.info("db_read", entity="user", phone_number=phone_number)
     repo = UserRepository(db)
     user = await repo.get_by_phone(phone_number)
     if not user:
@@ -133,6 +141,13 @@ async def signup_init(phone_number: str, db: AsyncSession = Depends(get_db)):
 
     try:
         await db.commit()
+        logger.info(
+            "db_write_success", entity="signup_session", phone_number=phone_number
+        )
+    except Exception as e:
+        logger.error("db_write_failed", error=str(e), entity="signup_session")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Database error during signup init")
         logger.info(f"DB: Signup records for {phone_number} initialized.")
     except Exception as e:
         await db.rollback()
@@ -146,7 +161,7 @@ async def signup_init(phone_number: str, db: AsyncSession = Depends(get_db)):
 
 @app.get("/signup/session/{phone_number}")
 async def get_signup_session(phone_number: str, db: AsyncSession = Depends(get_db)):
-    logger.info(f"DB: GET Session {phone_number}")
+    logger.info("db_read", entity="signup_session", phone_number=phone_number)
     from .models.auth import SignupSession
 
     result = await db.execute(
@@ -160,7 +175,7 @@ async def get_signup_session(phone_number: str, db: AsyncSession = Depends(get_d
 
 @app.get("/users/id/{user_id}")
 async def get_user_by_id(user_id: int, db: AsyncSession = Depends(get_db)):
-    logger.info(f"DB: GET User ID {user_id}")
+    logger.info("db_read", entity="user", user_id=user_id)
     repo = UserRepository(db)
     user = await repo.get(user_id)
     if not user:
@@ -186,7 +201,15 @@ async def update_signup_session(
         if hasattr(session, key):
             setattr(session, key, value)
 
-    await db.commit()
+    try:
+        await db.commit()
+        logger.info(
+            "db_write_success", entity="signup_session", phone_number=phone_number
+        )
+    except Exception as e:
+        logger.error("db_write_failed", error=str(e), entity="signup_session")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Database error updating session")
     return session
 
 
@@ -204,8 +227,14 @@ async def update_user(
         if hasattr(user, key):
             setattr(user, key, value)
 
-    await db.commit()
-    await db.refresh(user)
+    try:
+        await db.commit()
+        await db.refresh(user)
+        logger.info("db_write_success", entity="user", phone_number=phone_number)
+    except Exception as e:
+        logger.error("db_write_failed", error=str(e), entity="user")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Database error updating user")
     return user
 
 
@@ -365,8 +394,16 @@ async def create_broker_account(
         account_type=account_type,
     )
     db.add(account)
-    await db.commit()
-    await db.refresh(account)
+    try:
+        await db.commit()
+        await db.refresh(account)
+        logger.info(
+            "db_write_success", entity="broker_account", account_number=account_number
+        )
+    except Exception as e:
+        logger.error("db_write_failed", error=str(e), entity="broker_account")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Database error creating account")
     return account
 
 
@@ -386,7 +423,9 @@ async def list_strategies(db: AsyncSession = Depends(get_db)):
 async def subscribe_to_strategy(
     strategy_name: str, user_id: int, db: AsyncSession = Depends(get_db)
 ):
-    logger.info(f"DB: SUBSCRIBE User {user_id} ➔ {strategy_name}")
+    logger.info(
+        "command_received", action="subscribe", strategy=strategy_name, user_id=user_id
+    )
     from .models.trading import Strategy, UserStrategy
 
     # 1. Get Strategy
@@ -449,8 +488,14 @@ async def create_order(order_data: dict, db: AsyncSession = Depends(get_db)):
 
     order = Order(**order_data)
     db.add(order)
-    await db.commit()
-    await db.refresh(order)
+    try:
+        await db.commit()
+        await db.refresh(order)
+        logger.info("db_write_success", entity="order", symbol=symbol)
+    except Exception as e:
+        logger.error("db_write_failed", error=str(e), entity="order")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Database error creating order")
     return order
 
 
@@ -518,7 +563,7 @@ async def sync_positions(
 @app.post("/signals")
 async def receive_signal(signal_data: dict, db: AsyncSession = Depends(get_db)):
     """Hub endpoint: Receives signals from strategy evaluators (Sync Service)."""
-    logger.info(f"HUB: Received signal for {signal_data.get('symbol')}")
+    logger.info("command_received", type="signal", symbol=signal_data.get("symbol"))
     return await signal_dispatcher.broadcast_signal(db, signal_data)
 
 
@@ -528,6 +573,12 @@ async def handle_position_event(
 ):
     """Hub endpoint: Receives position lifecycle events from MT5 Engine/Sync Service."""
     logger.info(f"HUB: {event_type} event for {mt5_login}")
+    logger.info(
+        "command_received",
+        action="handle_position_event",
+        event_type=event_type,
+        mt5_login=mt5_login,
+    )
     await signal_dispatcher.handle_position_event(db, event_type, mt5_login, data)
     return {"status": "success"}
 
@@ -536,6 +587,10 @@ async def handle_position_event(
 async def open_position(pos_data: dict, db: AsyncSession = Depends(get_db)):
     from .models.trading import Position, Order
     from sqlalchemy import update
+
+    logger.info(
+        "command_received", action="open_position", ticket=pos_data.get("ticket")
+    )
 
     # 1. Create/Update Position
     new_pos = Position(
@@ -566,8 +621,23 @@ async def open_position(pos_data: dict, db: AsyncSession = Depends(get_db)):
             .values(status="FILLED")
         )
 
-    await db.commit()
-    logger.info(f"DB: Position OPENED/SYNC {pos_data['ticket']}")
+    try:
+        await db.commit()
+        logger.info(
+            "db_write_success",
+            entity="position",
+            action="open",
+            ticket=pos_data["ticket"],
+        )
+    except Exception as e:
+        logger.error(
+            "db_write_failed",
+            error=str(e),
+            entity="position",
+            ticket=pos_data["ticket"],
+        )
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Database error opening position")
     return {"status": "success"}
 
 
@@ -583,7 +653,19 @@ async def close_position(
     if position:
         position.active_status = False
         position.current_price = profit
-        await db.commit()
+        try:
+            await db.commit()
+            logger.info(
+                "db_write_success", entity="position", action="close", ticket=ticket
+            )
+        except Exception as e:
+            logger.error(
+                "db_write_failed", error=str(e), entity="position", ticket=ticket
+            )
+            await db.rollback()
+            raise HTTPException(
+                status_code=500, detail="Database error closing position"
+            )
     return {"status": "success"}
 
 

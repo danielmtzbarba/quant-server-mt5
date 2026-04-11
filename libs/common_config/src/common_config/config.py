@@ -26,6 +26,8 @@ class BaseServiceSettings(BaseSettings):
     4. Environment variables
     """
 
+    ENV: str = "production"
+
     model_config = SettingsConfigDict(
         env_file_encoding="utf-8",
         extra="ignore",
