@@ -40,4 +40,4 @@ RUN wget -q https://bootstrap.pypa.io/pip/3.8/get-pip.py && \
 # 6. Install Core Python requirements for MT5
 RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install \
     MetaTrader5 fastapi uvicorn httpx rich python-dotenv pydantic-settings \
-    prometheus-fastapi-instrumentator prometheus-client
+    influxdb-client prometheus-fastapi-instrumentator prometheus-client
