@@ -7,6 +7,8 @@ dependencies = [
     "common-events",
     "fastapi",
     "uvicorn",
+    "prometheus-fastapi-instrumentator>=7.0.0",
+    "prometheus-client>=0.20.0",
     "httpx",
     "langchain",
     "langchain-openai",

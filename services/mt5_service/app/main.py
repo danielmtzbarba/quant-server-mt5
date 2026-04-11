@@ -11,6 +11,7 @@ from common_logging import (
 from .core.mt5_service import mt5_service
 from .api.trading import router as trading_router
 from .api.monitoring import router as monitoring_router
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # --- FIX: Wine/Windows broken pipe noise ---
 # Switching from Proactor (default) to Selector loop for improved stability in Wine
@@ -54,6 +55,9 @@ app = FastAPI(title="MT5 Minimal Wrapper API", lifespan=lifespan)
 # Add structured logging middlewares
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
+
+# Prometheus instrumentation
+Instrumentator().instrument(app).expose(app)
 
 # Include core Routers
 app.include_router(trading_router)

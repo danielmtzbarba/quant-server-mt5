@@ -25,6 +25,8 @@ dependencies = [
     "python-multipart>=0.0.9",
     "influxdb-client>=1.40.0",
     "plotly>=5.18.0",
+    "prometheus-fastapi-instrumentator>=7.0.0",
+    "prometheus-client>=0.20.0",
     "common-logging",
     "common-config",
     "common-events",

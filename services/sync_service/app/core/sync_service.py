@@ -8,6 +8,7 @@ from .mt5_client import mt5_client
 from ..infra.health import DataHealthMonitor
 from ..infra.indicators import PriceActionIndicators as Indicators
 from ..infra.strategy import SRBounceRejection as Strategy
+from .metrics import RECONCILIATION_MISMATCHES
 
 logger = structlog.get_logger(__name__)
 
@@ -29,6 +30,7 @@ class SyncService:
                     symbol=symbol,
                     backfill_days=settings.RECOVERY_BACKFILL_DAYS,
                 )
+                RECONCILIATION_MISMATCHES.inc()
                 await self.backfill_history(
                     symbol, days=settings.RECOVERY_BACKFILL_DAYS
                 )
@@ -39,6 +41,7 @@ class SyncService:
                     gap_count=len(report["gaps"]),
                     backfill_days=settings.RECOVERY_BACKFILL_DAYS,
                 )
+                RECONCILIATION_MISMATCHES.inc()
                 await self.backfill_history(
                     symbol, days=settings.RECOVERY_BACKFILL_DAYS
                 )

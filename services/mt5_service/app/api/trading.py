@@ -2,6 +2,7 @@ from fastapi import APIRouter
 import structlog
 from ..models.schemas import TradeRequest, OrderResponse
 from ..core.mt5_service import mt5_service
+from ..core.metrics import EXECUTION_SUCCESS, EXECUTION_FAILED
 
 logger = structlog.get_logger(__name__)
 
@@ -18,6 +19,8 @@ def place_order(trade: TradeRequest):
     result = mt5_service.place_order(trade)
     if result.status == "failed":
         logger.error("order_rejected", reason=result.comment)
+        EXECUTION_FAILED.inc()
     else:
         logger.info("order_submitted", ticket=result.ticket)
+        EXECUTION_SUCCESS.inc()
     return result

@@ -36,8 +36,6 @@ services:
       - ../envs/core.env
     depends_on:
       - postgres
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         limits:
@@ -61,8 +59,6 @@ services:
       - MESSAGING_SERVICE_URL=http://messaging_service:8003
     depends_on:
       - core-service
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         limits:
@@ -87,8 +83,6 @@ services:
     depends_on:
       - core-service
       - execution-service
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         limits:

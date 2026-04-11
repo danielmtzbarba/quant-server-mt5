@@ -15,6 +15,7 @@ from .core.workers.monitoring import position_monitor_task
 from .core.workers.publishing import candle_publisher_task
 from .core.workers.health import health_monitor_loop
 from .api.sync import router as sync_router
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # Setup standardized logging
 logger = setup_logging("sync-service")
@@ -61,6 +62,9 @@ app = FastAPI(title="Sync & Dashboard Service", lifespan=lifespan)
 # Add structured logging middlewares
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
+
+# Prometheus instrumentation
+Instrumentator().instrument(app).expose(app)
 
 # Mount static files for dashboard (if any)
 # Note: In the container, static is at /app/static but we want it relative to this file's execution dir if running locally

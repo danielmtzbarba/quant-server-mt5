@@ -18,6 +18,7 @@ from common_logging import (
 )
 from .core.config import settings
 from .infra.database import get_db
+from prometheus_fastapi_instrumentator import Instrumentator
 from .repos.user_repo import UserRepository
 from .repos.watchlist_repo import WatchlistRepository
 from .repos.alert_repo import AlertRepository
@@ -48,6 +49,9 @@ app = FastAPI(title="Core Service", lifespan=lifespan)
 # Add structured logging middlewares
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
+
+# Prometheus instrumentation
+Instrumentator().instrument(app).expose(app)
 
 # Setup templates and static files (Root-relative)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

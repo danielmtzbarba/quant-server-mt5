@@ -13,6 +13,8 @@ dependencies = [
     "rich",
     "common-logging",
     "common-events",
+    "prometheus-fastapi-instrumentator>=7.0.0",
+    "prometheus-client>=0.20.0",
 ]
 
 [tool.uv.sources]

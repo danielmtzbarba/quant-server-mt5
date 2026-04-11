@@ -11,6 +11,21 @@ from common_logging import (
     RequestLoggingMiddleware,
 )
 from .infra.whatsapp.message import Message
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Counter
+
+# Custom metrics
+PARSE_FAILURES = Counter(
+    "messaging_webhook_parse_failures_total", "Total number of failed webhook parses"
+)
+OUTBOUND_FAIL_COUNT = Counter(
+    "messaging_outbound_send_failures_total", "Total number of failed outbound messages"
+)
+WEBHOOK_COUNT = Counter(
+    "messaging_webhook_received_total",
+    "Total number of webhooks received",
+    ["event_type"],
+)
 
 # Increase detail for the main logger as well
 # Setup structured logging
@@ -21,6 +36,9 @@ app = FastAPI(title="Messaging Service", redirect_slashes=False)
 # Add structured logging middlewares
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
+
+# Prometheus instrumentation
+Instrumentator().instrument(app).expose(app)
 
 
 @app.get("/health")
@@ -58,11 +76,22 @@ async def receive_message(request: Request):
     payload = await request.json()
     logger.info("webhook_received", payload=payload)
     msg = Message(payload)
+
+    # Increment webhook counter
+    event_label = (
+        "message" if msg.is_message else ("status" if msg.status else "unknown")
+    )
+    WEBHOOK_COUNT.labels(event_type=event_label).inc()
+
     if msg.is_message:
         logger.info("message_parsed", phone=msg.number, text=msg.text)
         await bot_service.process_request(msg)
     elif msg.is_read:
         logger.debug("message_read_check")
+    elif not msg.status:
+        # Not a message and not a status update = potential parse failure
+        PARSE_FAILURES.inc()
+
     return PlainTextResponse("SUCCESS")
 
 
@@ -77,8 +106,14 @@ async def send_message_api(request: Request):
         from .infra.whatsapp.utils import send_message
         from .infra.whatsapp import msg_types as msgs
 
-        send_message(msgs.text_message(to, text))
-        return {"status": "sent"}
+        try:
+            send_message(msgs.text_message(to, text))
+            return {"status": "sent"}
+        except Exception as e:
+            logger.error("outbound_send_failed", error=str(e))
+            OUTBOUND_FAIL_COUNT.inc()
+            return {"status": "error", "message": str(e)}
+
     return {"status": "error", "message": "Missing 'to' or 'text'"}
 
 
