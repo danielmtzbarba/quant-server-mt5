@@ -78,6 +78,12 @@ Events related to terminal operations and order execution.
 | `execution_request_received` | A trade execution request hit the MT5 engine | `action`, `symbol`, `volume` |
 | `order_submitted` | MT5 terminal accepted the order | `ticket`, `symbol`, `action` |
 | `order_rejected` | MT5 terminal rejected the trade | `reason`, `symbol`, `error_code` |
+| `mt5_poll_started` | Debug | Start of a position polling cycle. |
+| `mt5_service_ready` | Info | MT5 REST API is responsive and ready. |
+| `mt5_health_check_failed` | Error | MT5 REST API health probe failed. |
+| `database_empty` | Warning | InfluxDB has no data for a symbol (triggers recovery). |
+| `data_gaps_found` | Warning | Gaps detected in InfluxDB (triggers recovery). |
+| `health_check_passed` | Info | Symbol data integrity verified. |
 | `mt5_poll_failed` | Local worker failed to communicate with MT5.exe | `reason` |
 
 ---

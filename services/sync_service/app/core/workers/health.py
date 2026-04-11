@@ -12,7 +12,7 @@ async def health_monitor_loop():
         try:
             symbols = await mt5_client.get_tracked_symbols()
             for symbol in symbols:
-                sync_service.run_health_check(symbol)
+                await sync_service.run_health_check(symbol)
             await asyncio.sleep(600)  # Every 10 minutes
         except asyncio.CancelledError:
             break

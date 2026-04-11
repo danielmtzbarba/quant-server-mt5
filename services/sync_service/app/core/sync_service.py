@@ -1,14 +1,15 @@
 import pandas as pd
 from datetime import timedelta
 from typing import List, Dict, Any
-import logging
+import structlog
+from .config import settings
 from .influx_service import influx_service
 from .mt5_client import mt5_client
 from ..infra.health import DataHealthMonitor
 from ..infra.indicators import PriceActionIndicators as Indicators
 from ..infra.strategy import SRBounceRejection as Strategy
 
-logger = logging.getLogger("sync-service")
+logger = structlog.get_logger(__name__)
 
 
 class SyncService:
@@ -16,24 +17,37 @@ class SyncService:
         self.repair_flags: Dict[str, List[Dict[str, Any]]] = {}
         self.latest_signals: Dict[str, Dict[str, Any]] = {}
 
-    def run_health_check(self, symbol: str, days: int = 14):
+    async def run_health_check(self, symbol: str, days: int = 14):
         try:
             report = DataHealthMonitor.check_integrity(
                 symbol, days=days, log_table=False
             )
 
             if report["status"] == "empty":
-                logger.warning(f"🔦 {symbol}: Database EMPTY. Need backfill.")
-                self.repair_flags[symbol] = [{"start": "-14d", "end": "now"}]
+                logger.warning(
+                    "database_empty",
+                    symbol=symbol,
+                    backfill_days=settings.RECOVERY_BACKFILL_DAYS,
+                )
+                await self.backfill_history(
+                    symbol, days=settings.RECOVERY_BACKFILL_DAYS
+                )
             elif report["gaps"]:
-                logger.warning(f"🔦 {symbol}: {len(report['gaps'])} Gaps Found")
-                self.repair_flags[symbol] = report["gaps"]
+                logger.warning(
+                    "data_gaps_found",
+                    symbol=symbol,
+                    gap_count=len(report["gaps"]),
+                    backfill_days=settings.RECOVERY_BACKFILL_DAYS,
+                )
+                await self.backfill_history(
+                    symbol, days=settings.RECOVERY_BACKFILL_DAYS
+                )
             else:
-                logger.info(f"🔦 {symbol}: Health check passed.")
+                logger.info("health_check_passed", symbol=symbol)
                 self.repair_flags.pop(symbol, None)
             return report
         except Exception as e:
-            logger.error(f"Health check failed for {symbol}: {e}")
+            logger.error("health_check_failed", symbol=symbol, error=str(e))
             return {"status": "error", "message": str(e)}
 
     def get_sync_status(self, symbol: str):

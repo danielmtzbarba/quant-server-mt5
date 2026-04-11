@@ -1,10 +1,10 @@
 import httpx
 import asyncio
-import logging
+import structlog
 from .config import settings
 from typing import Optional
 
-logger = logging.getLogger("sync-service")
+logger = structlog.get_logger(__name__)
 
 
 class MT5Client:
@@ -13,15 +13,15 @@ class MT5Client:
         self._client: Optional[httpx.AsyncClient] = None
 
     async def wait_until_ready(self, timeout: int = 60):
-        logger.info(f"Waiting for MT5 Service to be ready at {self.base_url}...")
+        logger.info("waiting_for_mt5_service", url=self.base_url)
         start_time = asyncio.get_event_loop().time()
         while asyncio.get_event_loop().time() - start_time < timeout:
             health = await self.get_health()
             if health.get("status") == "healthy":
-                logger.info("MT5 Service is ready.")
+                logger.info("mt5_service_ready")
                 return True
             await asyncio.sleep(2)
-        logger.error("Timeout waiting for MT5 Service to be ready.")
+        logger.error("mt5_service_timeout", timeout=timeout)
         return False
 
     def get_client(self) -> httpx.AsyncClient:
@@ -35,7 +35,7 @@ class MT5Client:
             response = await client.get(f"{self.base_url}/api/health")
             return response.json()
         except Exception as e:
-            logger.error(f"Failed to get MT5 health: {e}")
+            logger.error("mt5_health_check_failed", error=str(e))
             return {"status": "unhealthy", "error": str(e)}
 
     async def get_positions(self):
@@ -44,7 +44,7 @@ class MT5Client:
             response = await client.get(f"{self.base_url}/api/positions")
             return response.json()
         except Exception as e:
-            logger.error(f"Failed to get MT5 positions: {e}")
+            logger.error("mt5_fetch_positions_failed", error=str(e))
             return None
 
     async def get_history(self, symbol: str, count: int = 1000):
@@ -57,7 +57,7 @@ class MT5Client:
                 return response.json()
             return None
         except Exception as e:
-            logger.error(f"Failed to get MT5 history for {symbol}: {e}")
+            logger.error("mt5_fetch_history_failed", symbol=symbol, error=str(e))
             return None
 
     async def place_order(self, trade_data: dict):
@@ -66,7 +66,7 @@ class MT5Client:
             response = await client.post(f"{self.base_url}/api/order", json=trade_data)
             return response.json()
         except Exception as e:
-            logger.error(f"Failed to place order: {e}")
+            logger.error("mt5_place_order_failed", error=str(e))
             return {"status": "failed", "comment": str(e)}
 
     async def get_tracked_symbols(self):
@@ -75,7 +75,7 @@ class MT5Client:
             response = await client.get(f"{self.base_url}/api/symbols")
             return response.json().get("tracked", [])
         except Exception as e:
-            logger.error(f"Failed to get tracked symbols: {e}")
+            logger.error("mt5_fetch_symbols_failed", error=str(e))
             return ["EURUSD", "NVDA"]  # Fallback
 
 

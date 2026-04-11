@@ -20,15 +20,21 @@ def test_get_sync_status(sync_service):
         assert status["last_timestamp"] == "2026-01-01T00:00:00Z"
 
 
-def test_run_health_check_empty(sync_service):
-    with patch(
-        "services.sync_service.app.core.sync_service.DataHealthMonitor.check_integrity"
-    ) as mock_check:
+@pytest.mark.asyncio
+async def test_run_health_check_empty(sync_service):
+    with (
+        patch(
+            "services.sync_service.app.core.sync_service.DataHealthMonitor.check_integrity"
+        ) as mock_check,
+        patch.object(sync_service, "backfill_history") as mock_backfill,
+    ):
         mock_check.return_value = {"status": "empty", "gaps": []}
-        report = sync_service.run_health_check("EURUSD")
+        mock_backfill.return_value = True
+
+        report = await sync_service.run_health_check("EURUSD")
+
         assert report["status"] == "empty"
-        assert "EURUSD" in sync_service.repair_flags
-        assert sync_service.repair_flags["EURUSD"][0]["start"] == "-14d"
+        mock_backfill.assert_called_once()
 
 
 def test_check_repair_no_gaps(sync_service):

@@ -1,13 +1,13 @@
 import asyncio
 import httpx
+import structlog
 from datetime import datetime
-import logging
 from ..config import settings
 from ..mt5_client import mt5_client
 from ..influx_service import influx_service
 from ..trading_service import trading_service
 
-logger = logging.getLogger("sync-service")
+logger = structlog.get_logger(__name__)
 
 
 class CandlePublisher:
@@ -16,7 +16,9 @@ class CandlePublisher:
 
     async def run(self):
         logger.info(
-            f"Starting Candle Publisher. Polling MT5 Service at {settings.MT5_SERVICE_URL}"
+            "worker_started",
+            worker="candle_publisher",
+            mt5_url=settings.MT5_SERVICE_URL,
         )
         while True:
             try:

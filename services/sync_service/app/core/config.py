@@ -7,6 +7,7 @@ class Settings(BaseServiceSettings):
     CORE_SERVICE_URL: str = "http://core_service:8001"
     BACKEND_URL: str = "http://mt5-engine-gcp:8002"
     MT5_LOGIN: str = ""
+    RECOVERY_BACKFILL_DAYS: int = 3  # Default 3-day sync on gap detection
 
     INFLUX_URL: str = "http://localhost:8086"
     INFLUX_TOKEN: str = ""
