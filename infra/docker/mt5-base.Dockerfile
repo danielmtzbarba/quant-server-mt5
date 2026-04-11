@@ -28,9 +28,9 @@ RUN wget -q https://www.python.org/ftp/python/3.8.10/python-3.8.10-embed-amd64.z
     unzip python-3.8.10-embed-amd64.zip && \
     rm python-3.8.10-embed-amd64.zip
 
-# 4. Fix Python path# 9. Enable site-packages and inject application path directly into Python's search path
+# 4. Enable site-packages and inject application path directly into Python's search path
 RUN sed -i 's/#import site/import site/g' python38._pth && \
-    echo "Z:\\app" >> python38._pth
+    echo "Z:/app" > app_path.pth
 
 # 5. Install Pip
 RUN wget -q https://bootstrap.pypa.io/pip/3.8/get-pip.py && \
