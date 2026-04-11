@@ -32,8 +32,9 @@ RUN wget -q https://bootstrap.pypa.io/pip/3.8/get-pip.py && \
     xvfb-run -a wine /root/.wine/drive_c/python/python.exe get-pip.py && \
     rm get-pip.py
 
-# 6. Install MT5 + FastAPI + httpx
-RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install MetaTrader5 fastapi uvicorn httpx
+# 6. Install MT5 + FastAPI + httpx + common dependencies
+RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install \
+    MetaTrader5 fastapi uvicorn httpx rich python-dotenv pydantic-settings
 
 
 # 7. Pull the pre-installed MT5 portable archive from GitHub Releases
@@ -44,10 +45,15 @@ RUN mkdir -p "/root/.wine/drive_c/Program Files/" && \
     tar -xzf /tmp/mt5.tar.gz -C "/root/.wine/drive_c/Program Files/" && \
     rm /tmp/mt5.tar.gz
 
-# 9. Copy Application layers
+# 9. Copy and Install shared libs
 WORKDIR /app
-COPY app /app/app
-COPY entrypoint.sh /app/entrypoint.sh
+COPY libs /app/libs
+RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install \
+    /app/libs/common_config /app/libs/common_logging
+
+# 10. Copy Application context
+COPY services/mt5_service/app /app/services/mt5_service/app
+COPY services/mt5_service/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8000 5900

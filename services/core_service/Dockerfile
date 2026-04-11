@@ -7,5 +7,5 @@ COPY services/core_service/app /app/services/core_service/app
 COPY static/ /app/static/
 
 # The .venv is already in the PATH from the base image
-WORKDIR /app/services/core_service/app
-CMD ["python", "main.py"]
+WORKDIR /app
+CMD ["python", "-m", "services.core_service.app.main"]

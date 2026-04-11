@@ -8,5 +8,5 @@ COPY static/ /app/static/
 COPY templates/ /app/templates/
 
 # The .venv is already in the PATH from the base image
-WORKDIR /app/services/sync_service/app
-CMD ["python", "main.py"]
+WORKDIR /app
+CMD ["python", "-m", "services.sync_service.app.main"]
