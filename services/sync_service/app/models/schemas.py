@@ -21,7 +21,7 @@ class TradeDBCandle(BaseModel):
     high: float
     low: float
     close: float
-    volume: float
+    volume: int
 
 
 class MarketDataPoint(BaseModel):
@@ -29,7 +29,7 @@ class MarketDataPoint(BaseModel):
     high: float
     low: float
     close: float
-    volume: float
+    volume: int
 
 
 class TradeDBPayload(BaseModel):

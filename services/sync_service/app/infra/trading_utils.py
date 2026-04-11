@@ -1,7 +1,7 @@
 import pandas as pd
 from common_logging import setup_logging
 
-logger = setup_logging("execution-service", tag="UTILS", color="cyan")
+logger = setup_logging("sync-service-utils")
 
 
 def filter_last_trading_days(df: pd.DataFrame, n_days: int = 3) -> pd.DataFrame:
