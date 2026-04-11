@@ -3,7 +3,7 @@ services:
     build:
       context: ../../../services/mt5_service
       dockerfile: Dockerfile
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/mt5-service:latest
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/mt5_service:latest
     container_name: mt5_service
     network_mode: "host"
     env_file: .env
@@ -18,7 +18,7 @@ services:
     build:
       context: ../../../
       dockerfile: services/sync_service/Dockerfile
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/sync-service:latest
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/sync_service:latest
     container_name: sync_service
     network_mode: "host"
     env_file: .env
