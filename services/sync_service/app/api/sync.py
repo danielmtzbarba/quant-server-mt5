@@ -1,19 +1,21 @@
 from fastapi import APIRouter, Query, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from app.services.sync_service import sync_service
-from app.services.trading_service import trading_service
-from app.services.mt5_client import mt5_client
-from app.models.schemas import (
+from ..core.sync_service import sync_service
+from ..core.trading_service import trading_service
+from ..core.mt5_client import mt5_client
+from ..models.schemas import (
     TradeDBPayload,
     TradeRequest,
     PositionEvent,
     TradeErrorEvent,
 )
-from app.utils.visualization import MarketVisualizer
-from app.core.logging import logger
+from ..infra.visualization import MarketVisualizer
+import logging
 import os
 from typing import Any
+
+logger = logging.getLogger("sync-service")
 
 router = APIRouter(tags=["Sync"])
 

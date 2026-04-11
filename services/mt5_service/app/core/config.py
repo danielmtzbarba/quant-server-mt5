@@ -1,13 +1,18 @@
-import os
+from common_config import BaseServiceSettings
+from pydantic_settings import SettingsConfigDict
 
 
-class Settings:
-    MT5_PATH: str = os.environ.get(
-        "MT5_PATH", r"C:\Program Files\MetaTrader 5\terminal64.exe"
+class Settings(BaseServiceSettings):
+    MT5_PATH: str = r"C:\Program Files\MetaTrader 5\terminal64.exe"
+    MT5_LOGIN: str = ""
+    MT5_PASSWORD: str = ""
+    MT5_SERVER: str = ""
+
+    model_config = SettingsConfigDict(
+        env_file=BaseServiceSettings.find_env_files("mt5", __file__),
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
-    MT5_LOGIN: str = os.environ.get("MT5_LOGIN", "")
-    MT5_PASSWORD: str = os.environ.get("MT5_PASSWORD", "")
-    MT5_SERVER: str = os.environ.get("MT5_SERVER", "")
 
 
 settings = Settings()

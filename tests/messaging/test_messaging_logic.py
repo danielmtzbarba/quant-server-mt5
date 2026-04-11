@@ -14,7 +14,10 @@ async def test_receive_whatsapp_message_flow(msg_client: AsyncClient, mocker):
     mock_httpx.get.return_value = Response(
         200, json={"id": 1, "phone_number": "123456789"}
     )
-    mocker.patch("services.bot_service.httpx.AsyncClient", return_value=mock_httpx)
+    mocker.patch(
+        "services.messaging_service.app.core.bot_service.httpx.AsyncClient",
+        return_value=mock_httpx,
+    )
 
     # 2. Mock Agent/AI — patch the lazy singleton to return a mock executor
     mock_executor = mocker.AsyncMock()
@@ -22,12 +25,14 @@ async def test_receive_whatsapp_message_flow(msg_client: AsyncClient, mocker):
     mock_ai_resp.content = "Sure, I'll help with that."
     mock_executor.ainvoke.return_value = {"messages": [mock_ai_resp]}
     mocker.patch(
-        "services.bot_service.get_agent_executor_singleton",
+        "services.messaging_service.app.core.bot_service.get_agent_executor_singleton",
         return_value=mock_executor,
     )
 
     # 3. Mock WhatsApp Send
-    mock_wa_send = mocker.patch("services.bot_service.whatsapp_service.send_messages")
+    mock_wa_send = mocker.patch(
+        "services.messaging_service.app.core.bot_service.whatsapp_service.send_messages"
+    )
 
     # 4. Mock Message payload construction
     mocker.patch(
@@ -49,7 +54,10 @@ async def test_receive_whatsapp_message_flow(msg_client: AsyncClient, mocker):
 @pytest.mark.asyncio
 async def test_messaging_send_endpoint(msg_client: AsyncClient, mocker):
     """Verify that the /send endpoint correctly calls the WhatsApp utility."""
-    mock_send = mocker.patch("whatsapp.utils.send_message")
+    # We patch the source since main.py uses a local import
+    mock_send = mocker.patch(
+        "services.messaging_service.app.infra.whatsapp.utils.send_message"
+    )
 
     payload = {"to": "123456789", "text": "Hello from Server"}
 

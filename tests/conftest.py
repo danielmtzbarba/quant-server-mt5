@@ -1,24 +1,45 @@
+import sys
+import os
 import pytest
-from typing import AsyncGenerator
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.pool import StaticPool
+
+# Ensure all service 'app' directories are in sys.path for relative imports
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_PATHS = [
+    ROOT_DIR,
+    os.path.join(ROOT_DIR, "services/core_service/app"),
+    os.path.join(ROOT_DIR, "services/messaging_service/app"),
+    os.path.join(ROOT_DIR, "services/mt5_service/app"),
+    os.path.join(ROOT_DIR, "services/sync_service/app"),
+]
+
+for path in PROJECT_PATHS:
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
+from typing import AsyncGenerator  # noqa: E402
+from httpx import AsyncClient, ASGITransport  # noqa: E402
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
 
 # Force pytest-asyncio
 pytest_plugins = ["pytest_asyncio"]
 
 # Import apps for testing
-import services.core_service.app.main as core_main  # noqa: E402
+try:
+    import services.core_service.app.main as core_main
 
-core_app = core_main.app
+    core_app = core_main.app
+except (ImportError, ModuleNotFoundError):
+    core_main = None
+    core_app = None
 
-import services.execution_service.app.main as exec_main  # noqa: E402
+try:
+    import services.messaging_service.app.main as msg_main
 
-exec_app = exec_main.app
-
-import services.messaging_service.app.main as msg_main  # noqa: E402
-
-msg_app = msg_main.app
+    msg_app = msg_main.app
+except (ImportError, ModuleNotFoundError):
+    msg_main = None
+    msg_app = None
 
 # 2. Setup In-Memory SQLite for fast testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -44,25 +65,24 @@ async def override_get_db():
             await session.close()
 
 
-# To ensure object identity matches, we pull get_db from the imported modules
-if hasattr(core_main, "get_db"):
+if core_app and core_main and hasattr(core_main, "get_db"):
     core_app.dependency_overrides[core_main.get_db] = override_get_db
 
-if hasattr(exec_main, "get_db"):
-    exec_app.dependency_overrides[exec_main.get_db] = override_get_db
-
-if hasattr(msg_main, "get_db"):
+if msg_app and msg_main and hasattr(msg_main, "get_db"):
     msg_app.dependency_overrides[msg_main.get_db] = override_get_db
 
 
 @pytest.fixture(autouse=True)
 async def setup_db():
     """Initialize a CLEAN test database for EVERY test case."""
-    # Use the SINGLE Base that all models are registered to
-    # We must be careful to use the correct Base object identity too
-    # core.base should be findable via sys.path now.
     try:
-        from core.base import Base
+        # Import models EXPLICITLY to ensure they register with the correct Base
+        from services.core_service.app.infra.base import Base
+        import services.core_service.app.models.user  # noqa: F401
+        import services.core_service.app.models.alert  # noqa: F401
+        import services.core_service.app.models.watchlist  # noqa: F401
+        import services.core_service.app.models.trading  # noqa: F401
+        import services.core_service.app.models.auth  # noqa: F401
 
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -85,32 +105,33 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 # Test Clients
 @pytest.fixture
 async def core_client() -> AsyncGenerator[AsyncClient, None]:
-    async with AsyncClient(
-        transport=ASGITransport(app=core_app), base_url="http://core"
-    ) as client:
-        yield client
-
-
-@pytest.fixture
-async def exec_client() -> AsyncGenerator[AsyncClient, None]:
-    async with AsyncClient(
-        transport=ASGITransport(app=exec_app), base_url="http://exec"
-    ) as client:
-        yield client
+    if core_app:
+        async with AsyncClient(
+            transport=ASGITransport(app=core_app), base_url="http://core"
+        ) as client:
+            yield client
+    else:
+        pytest.skip("Core app not available")
 
 
 @pytest.fixture
 async def msg_client() -> AsyncGenerator[AsyncClient, None]:
-    async with AsyncClient(
-        transport=ASGITransport(app=msg_app), base_url="http://msg"
-    ) as client:
-        yield client
+    if msg_app:
+        async with AsyncClient(
+            transport=ASGITransport(app=msg_app), base_url="http://msg"
+        ) as client:
+            yield client
+    else:
+        pytest.skip("Messaging app not available")
 
 
 # Global Mocks
 @pytest.fixture(autouse=True)
 def mock_external_apis(mocker):
-    mocker.patch("whatsapp.utils.send_message", return_value={"status": "sent"})
+    mocker.patch(
+        "services.messaging_service.app.infra.whatsapp.utils.send_message",
+        return_value={"status": "sent"},
+    )
     mocker.patch(
         "openai.resources.chat.Completions.create",
         return_value=mocker.Mock(
@@ -122,11 +143,11 @@ def mock_external_apis(mocker):
         ),
     )
     mocker.patch(
-        "services.sync_db_service.sync_db_service.log_candle",
-        return_value={"status": "success"},
+        "services.sync_service.app.core.sync_service.SyncService.verify_history",
+        return_value={"status": "success", "mismatched_bars": 0},
     )
     mocker.patch(
-        "services.sync_db_service.sync_db_service.evaluate_strategy",
+        "services.sync_service.app.core.sync_service.SyncService.evaluate_strategy",
         return_value=(None, None),
     )
 

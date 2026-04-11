@@ -1,25 +1,16 @@
 from fastapi import FastAPI, Request
 import uvicorn
 from fastapi.responses import PlainTextResponse
-from services.bot_service import bot_service
-from whatsapp.message import Message
-import whatsapp as wa
+from .core.bot_service import bot_service
+from .core.config import settings
+from .core.trading_notifications import notification_manager
 from common_logging import setup_logging
-from contextlib import asynccontextmanager
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("Initializing Messaging Service (DEBUG MODE)...")
-    # LIFTING THE MUZZLE: Allow uvicorn to report everything
-    yield
-    logger.info("Shutting down Messaging Service...")
-
+from .infra.whatsapp.message import Message
 
 # Increase detail for the main logger as well
 logger = setup_logging("messaging-service", tag="MESSAGING", color="blue")
 
-app = FastAPI(title="Messaging Service", lifespan=lifespan, redirect_slashes=False)
+app = FastAPI(title="Messaging Service", redirect_slashes=False)
 
 
 @app.get("/health")
@@ -32,12 +23,16 @@ async def health_check():
 async def verify_challenge(request: Request):
     logger.info("GET /webhook (Verification)")
     # Safe Identity: Log the first 3 chars of expected token to verify sync
-    expected_preview = (wa.auth_token[:3] + "...") if wa.auth_token else "NONE"
+    expected_preview = (
+        (settings.WHATSAPP_AUTH_TOKEN[:3] + "...")
+        if settings.WHATSAPP_AUTH_TOKEN
+        else "NONE"
+    )
     logger.debug(f"[WHATSAPP] Expected Token Identity: {expected_preview}")
 
     token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
-    if token == wa.auth_token and challenge is not None:
+    if token == settings.WHATSAPP_AUTH_TOKEN and challenge is not None:
         return PlainTextResponse(challenge)
 
     # Safe Diagnosis: Do NOT log the token itself for security, just the failure
@@ -66,12 +61,26 @@ async def send_message_api(request: Request):
     logger.info(f"Server ➔ User ({to})")
     text = payload.get("text")
     if to and text:
-        from whatsapp.utils import send_message
-        import whatsapp.msg_types as msgs
+        from .infra.whatsapp.utils import send_message
+        from .infra.whatsapp import msg_types as msgs
 
         send_message(msgs.text_message(to, text))
         return {"status": "sent"}
     return {"status": "error", "message": "Missing 'to' or 'text'"}
+
+
+@app.post("/notifications")
+async def handle_notification(request: Request):
+    payload = await request.json()
+    phone = payload.get("phone")
+    event_type = payload.get("event")
+    data = payload.get("data", {})
+
+    if not phone or not event_type:
+        return {"status": "error", "message": "Missing 'phone' or 'event'"}
+
+    await notification_manager.notify(phone, event_type, data)
+    return {"status": "success"}
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
 from typing import List
 from fastapi import APIRouter, HTTPException
-from app.services.mt5_service import mt5_service
-from app.core.logging import logger
+import logging
+from ..core.mt5_service import mt5_service
 from datetime import datetime
+
+logger = logging.getLogger("mt5-service")
 
 router = APIRouter(prefix="/api", tags=["Monitoring"])
 

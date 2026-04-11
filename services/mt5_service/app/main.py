@@ -1,18 +1,13 @@
-import sys
-import os
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
 
-# Ensure the parent directory is in sys.path so 'app' can be found as a package
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT_DIR not in sys.path:
-    sys.path.append(ROOT_DIR)
+from common_logging import setup_logging
+from .core.mt5_service import mt5_service
+from .api.trading import router as trading_router
+from .api.monitoring import router as monitoring_router
 
-from fastapi import FastAPI  # noqa: E402
-from contextlib import asynccontextmanager  # noqa: E402
-
-from app.core.logging import logger  # noqa: E402
-from app.services.mt5_service import mt5_service  # noqa: E402
-from app.api.trading import router as trading_router  # noqa: E402
-from app.api.monitoring import router as monitoring_router  # noqa: E402
+# Setup standardized logging
+logger = setup_logging("mt5-service", tag="MT5", color="green")
 
 
 @asynccontextmanager

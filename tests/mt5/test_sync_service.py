@@ -1,18 +1,18 @@
 import pytest
 from unittest.mock import patch
-from app.services.sync_service import SyncService
+from services.sync_service.app.core.sync_service import SyncService
 
 
 @pytest.fixture
 def sync_service():
-    with patch("app.services.sync_service.influx_service"):
+    with patch("services.sync_service.app.core.sync_service.influx_service"):
         yield SyncService()
 
 
 def test_get_sync_status(sync_service):
     # sync_service is already patched with influx_service mock in the fixture
     with patch(
-        "app.services.sync_service.influx_service.get_last_timestamp",
+        "services.sync_service.app.core.sync_service.influx_service.get_last_timestamp",
         return_value="2026-01-01T00:00:00Z",
     ):
         status = sync_service.get_sync_status("EURUSD")
@@ -22,7 +22,7 @@ def test_get_sync_status(sync_service):
 
 def test_run_health_check_empty(sync_service):
     with patch(
-        "app.services.sync_service.DataHealthMonitor.check_integrity"
+        "services.sync_service.app.core.sync_service.DataHealthMonitor.check_integrity"
     ) as mock_check:
         mock_check.return_value = {"status": "empty", "gaps": []}
         report = sync_service.run_health_check("EURUSD")

@@ -148,7 +148,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [core_service, execution_service, messaging_service]
+        service: [core_service, messaging_service]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -216,7 +216,6 @@ jobs:
           mkdir -p /app/infra/envs
           echo "$SHARED_ENV" > /app/infra/envs/shared.env
           echo "$CORE_ENV" > /app/infra/envs/core.env
-          echo "$EXECUTION_ENV" > /app/infra/envs/execution.env
           echo "$MESSAGING_ENV" > /app/infra/envs/messaging.env
 
           cd /app
@@ -245,7 +244,6 @@ jobs:
           max_retries=12
           for j in $(seq 1 $max_retries); do
             core_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/ || echo "000")
-            exec_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8002/ || echo "000")
             msg_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8003/ || echo "000")
 
             if [[ "$core_ok" != "000" && "$exec_ok" != "000" && "$msg_ok" != "000" ]]; then

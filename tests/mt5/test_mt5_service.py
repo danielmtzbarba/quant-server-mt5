@@ -1,12 +1,23 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from app.services.mt5_service import MT5Service
-from app.models.schemas import TradeRequest
+
+try:
+    from services.mt5_service.app.core.mt5_service import MT5Service
+    from services.mt5_service.app.models.schemas import TradeRequest
+
+    HAS_MT5_SERVICE = True
+except (ImportError, ModuleNotFoundError):
+    HAS_MT5_SERVICE = False
+
+pytestmark = pytest.mark.skipif(
+    not HAS_MT5_SERVICE, reason="MetaTrader5 service not available (likely non-Windows)"
+)
 
 
 @pytest.fixture
 def mock_mt5():
-    with patch("app.services.mt5_service.mt5") as m:
+    # Patch the actual location in the service
+    with patch("services.mt5_service.app.core.mt5_service.mt5") as m:
         yield m
 
 

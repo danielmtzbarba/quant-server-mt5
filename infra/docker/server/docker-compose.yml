@@ -22,30 +22,6 @@ services:
         reservations:
           memory: 128m
 
-  execution-service:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/execution_service:latest
-    build:
-      context: ../../../
-      dockerfile: services/execution_service/Dockerfile
-    container_name: execution_service
-    restart: unless-stopped
-    ports:
-      - "8002:8002"
-    env_file:
-      - ../../envs/shared.env
-      - ../../envs/execution.env
-    environment:
-      - CORE_SERVICE_URL=http://core_service:8001
-      - MESSAGING_SERVICE_URL=http://messaging_service:8003
-      - PYTHONPATH=/app/libs/common_logging/src:/app/libs/common_config/src:/app/libs/common_events/src:/app/libs/common_models/src:/app/services/execution_service/app
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    deploy:
-      resources:
-        limits:
-          memory: 256m
-        reservations:
-          memory: 128m
 
   messaging-service:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/messaging_service:latest
@@ -61,7 +37,6 @@ services:
       - ../../envs/messaging.env
     environment:
       - CORE_SERVICE_URL=http://core_service:8001
-      - EXECUTION_SERVICE_URL=http://execution_service:8002
       - PYTHONPATH=/app/libs/common_logging/src:/app/libs/common_config/src:/app/libs/common_events/src:/app/libs/common_models/src:/app/services/messaging_service/app
     extra_hosts:
       - "host.docker.internal:host-gateway"

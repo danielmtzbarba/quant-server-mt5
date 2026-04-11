@@ -32,8 +32,8 @@ dependencies = [
 
 [tool.uv.workspace]
 members = [
-    "services/*",
-    "libs/*",
+    "services/core_service", "services/messaging_service", "services/mt5_service", "services/sync_service",
+    "libs/common_config", "libs/common_events", "libs/common_logging", "libs/common_models",
 ]
 
 [tool.uv.sources]
@@ -60,7 +60,6 @@ testpaths = ["tests"]
 pythonpath = [
     ".",
     "services/core_service/app",
-    "services/execution_service/app",
     "services/messaging_service/app",
     "services/mt5_service/app",
     "services/sync_service/app",

@@ -9,17 +9,19 @@ import uvicorn
 import logging
 import os
 from sqlalchemy.ext.asyncio import AsyncSession
-from core.database import get_db
-from repositories.user_repo import UserRepository
-from repositories.watchlist_repo import WatchlistRepository
-from repositories.alert_repo import AlertRepository
-from models.user import User
-from models.alert import Alert
-from models.trading import Order, Position, BrokerAccount
-from models.watchlist import WatchlistItem
-from common_logging import setup_logging
-from common_config import get_env_var
 from contextlib import asynccontextmanager
+
+from common_logging import setup_logging
+from .core.config import settings
+from .infra.database import get_db
+from .repos.user_repo import UserRepository
+from .repos.watchlist_repo import WatchlistRepository
+from .repos.alert_repo import AlertRepository
+from .core.signal_dispatcher import signal_dispatcher
+from .models.user import User
+from .models.alert import Alert
+from .models.trading import Order, Position, BrokerAccount
+from .models.watchlist import WatchlistItem
 
 
 @asynccontextmanager
@@ -50,7 +52,7 @@ app.mount(
 
 
 async def verify_admin_token(token: str | None = None):
-    admin_token = get_env_var("ADMIN_TOKEN")
+    admin_token = settings.ADMIN_TOKEN
     if not admin_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -90,8 +92,8 @@ async def get_user(phone_number: str, db: AsyncSession = Depends(get_db)):
 async def signup_init(phone_number: str, db: AsyncSession = Depends(get_db)):
     """Atomic initialization: creates both the User record and their Signup Session."""
     logger.info(f"DB: SIGNUP INIT {phone_number}")
-    from models.auth import SignupSession
-    from models.user import User
+    from .models.auth import SignupSession
+    from .models.user import User
 
     # 1. Ensure User exists
     user_result = await db.execute(
@@ -131,7 +133,7 @@ async def signup_init(phone_number: str, db: AsyncSession = Depends(get_db)):
 
 @app.get("/signup/session/{phone_number}")
 async def get_signup_session(phone_number: str, db: AsyncSession = Depends(get_db)):
-    from models.auth import SignupSession
+    from .models.auth import SignupSession
 
     result = await db.execute(
         select(SignupSession).where(SignupSession.phone_number == phone_number)
@@ -156,7 +158,7 @@ async def get_user_by_id(user_id: int, db: AsyncSession = Depends(get_db)):
 async def update_signup_session(
     phone_number: str, updates: dict, db: AsyncSession = Depends(get_db)
 ):
-    from models.auth import SignupSession
+    from .models.auth import SignupSession
 
     result = await db.execute(
         select(SignupSession).where(SignupSession.phone_number == phone_number)
@@ -203,8 +205,8 @@ async def create_user(phone_number: str, name: str, db: AsyncSession = Depends(g
 async def get_users_by_symbol(symbol: str, db: AsyncSession = Depends(get_db)):
     logger.info(f"DB: GET Observers -> {symbol}")
     from sqlalchemy import select
-    from models.user import User
-    from models.watchlist import WatchlistItem
+    from .models.user import User
+    from .models.watchlist import WatchlistItem
 
     result = await db.execute(
         select(User)
@@ -288,8 +290,8 @@ async def delete_alert(alert_id: int, user_id: int, db: AsyncSession = Depends(g
 @app.get("/accounts/verify/{account_number}")
 async def verify_account(account_number: str, db: AsyncSession = Depends(get_db)):
     """Used by MT5 EA to verify if the current terminal is registered/authorized."""
-    from models.trading import BrokerAccount
-    from models.user import User
+    from .models.trading import BrokerAccount
+    from .models.user import User
 
     result = await db.execute(
         select(BrokerAccount)
@@ -307,8 +309,8 @@ async def verify_account(account_number: str, db: AsyncSession = Depends(get_db)
 @app.get("/accounts/{account_id}/user")
 async def get_account_user(account_id: int, db: AsyncSession = Depends(get_db)):
     from sqlalchemy import select
-    from models.trading import BrokerAccount
-    from models.user import User
+    from .models.trading import BrokerAccount
+    from .models.user import User
 
     result = await db.execute(
         select(User)
@@ -329,7 +331,7 @@ async def create_broker_account(
     account_type: str = "MT5",
     db: AsyncSession = Depends(get_db),
 ):
-    from models.trading import BrokerAccount
+    from .models.trading import BrokerAccount
 
     # Check if exists
     existing = await db.execute(
@@ -355,7 +357,7 @@ async def create_broker_account(
 
 @app.get("/strategies")
 async def list_strategies(db: AsyncSession = Depends(get_db)):
-    from models.trading import Strategy
+    from .models.trading import Strategy
 
     result = await db.execute(select(Strategy))
     return result.scalars().all()
@@ -365,7 +367,7 @@ async def list_strategies(db: AsyncSession = Depends(get_db)):
 async def subscribe_to_strategy(
     strategy_name: str, user_id: int, db: AsyncSession = Depends(get_db)
 ):
-    from models.trading import Strategy, UserStrategy
+    from .models.trading import Strategy, UserStrategy
 
     # 1. Get Strategy
     s_result = await db.execute(
@@ -395,9 +397,9 @@ async def subscribe_to_strategy(
 async def get_strategy_subscribers(
     strategy_name: str, db: AsyncSession = Depends(get_db)
 ):
-    from models.trading import Strategy
-    from models.user import User
-    from models.auth import SignupSession
+    from .models.trading import Strategy
+    from .models.user import User
+    from .models.auth import SignupSession
     from sqlalchemy.orm import selectinload
 
     result = await db.execute(
@@ -492,22 +494,26 @@ async def sync_positions(
     return {"status": "success"}
 
 
-@app.get("/positions/active/count")
-async def get_active_positions_count(db: AsyncSession = Depends(get_db)):
-    from sqlalchemy import select, func
-    from models.trading import Position
+@app.post("/signals")
+async def receive_signal(signal_data: dict, db: AsyncSession = Depends(get_db)):
+    """Hub endpoint: Receives signals from strategy evaluators (Sync Service)."""
+    logger.info(f"HUB: Received signal for {signal_data.get('symbol')}")
+    return await signal_dispatcher.broadcast_signal(db, signal_data)
 
-    result = await db.execute(
-        select(func.count())
-        .select_from(Position)
-        .where(Position.active_status.is_(True))
-    )
-    return {"count": result.scalar() or 0}
+
+@app.post("/position_event")
+async def handle_position_event(
+    event_type: str, mt5_login: str, data: dict, db: AsyncSession = Depends(get_db)
+):
+    """Hub endpoint: Receives position lifecycle events from MT5 Engine/Sync Service."""
+    logger.info(f"HUB: {event_type} event for {mt5_login}")
+    await signal_dispatcher.handle_position_event(db, event_type, mt5_login, data)
+    return {"status": "success"}
 
 
 @app.post("/positions/open")
 async def open_position(pos_data: dict, db: AsyncSession = Depends(get_db)):
-    from models.trading import Position, Order
+    from .models.trading import Position, Order
     from sqlalchemy import update
 
     # 1. Create/Update Position

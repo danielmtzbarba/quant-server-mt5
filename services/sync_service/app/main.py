@@ -1,24 +1,19 @@
-import sys
+import asyncio
 import os
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from contextlib import asynccontextmanager
 
-# Ensure the parent directory is in sys.path so 'app' can be found as a package
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT_DIR not in sys.path:
-    sys.path.append(ROOT_DIR)
+from common_logging import setup_logging
+from .core.influx_service import influx_service
+from .core.workers.monitoring import position_monitor_task
+from .core.workers.publishing import candle_publisher_task
+from .core.workers.health import health_monitor_loop
+from .api.sync import router as sync_router
 
-import asyncio  # noqa: E402
-from fastapi import FastAPI, Request  # noqa: E402
-from fastapi.staticfiles import StaticFiles  # noqa: E402
-from fastapi.templating import Jinja2Templates  # noqa: E402
-from contextlib import asynccontextmanager  # noqa: E402
-
-from app.core.logging import logger  # noqa: E402
-from app.services.influx_service import influx_service  # noqa: E402
-from app.workers.monitoring import position_monitor_task  # noqa: E402
-from app.workers.publishing import candle_publisher_task  # noqa: E402
-from app.workers.health import health_monitor_loop  # noqa: E402
-
-from app.api.sync import router as sync_router  # noqa: E402
+# Setup standardized logging
+logger = setup_logging("sync-service", tag="SYNC", color="blue")
 
 # Setup Templates
 # In production (Docker), these are at /app/templates. In local dev, they are at the root.
@@ -35,7 +30,7 @@ async def lifespan(app: FastAPI):
     influx_service.connect()
 
     # Wait for MT5 Service to be ready before starting workers
-    from app.services.mt5_client import mt5_client
+    from .core.mt5_client import mt5_client
 
     await mt5_client.wait_until_ready()
 

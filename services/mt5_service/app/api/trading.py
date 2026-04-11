@@ -1,7 +1,9 @@
 from fastapi import APIRouter
-from app.models.schemas import TradeRequest, OrderResponse
-from app.services.mt5_service import mt5_service
-from app.core.logging import logger
+import logging
+from ..models.schemas import TradeRequest, OrderResponse
+from ..core.mt5_service import mt5_service
+
+logger = logging.getLogger("mt5-service")
 
 router = APIRouter(prefix="/api/order", tags=["Trading"])
 
