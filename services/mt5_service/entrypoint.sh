@@ -20,6 +20,16 @@ echo "Wine View (Z:\\app\\services):"
 wine cmd /c "dir Z:\\app\\services" || echo "Wine failed to see Z:\\app\\services"
 echo "---------------------------"
 
+echo "--- Environment Audit ---"
+for var in MT5_USER MT5_PASSWORD MT5_SERVER; do
+  if [ -z "${!var}" ]; then
+    echo "✖ $var is MISSING"
+  else
+    echo "✓ $var is present"
+  fi
+done
+echo "--------------------------"
+
 echo "Neutralizing legacy Expert Advisors (EAs) to prevent automated order loops..."
 rm -rf "/root/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Experts/"*
 

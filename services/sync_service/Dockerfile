@@ -11,4 +11,8 @@ COPY templates/ /app/templates/
 
 # The .venv is already in the PATH from the base image
 WORKDIR /app
-CMD ["python", "-m", "services.sync_service.app.main"]
+# 10. Copy Application context
+COPY services/sync_service/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]
