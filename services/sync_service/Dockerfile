@@ -1,5 +1,6 @@
 # Inherit from the shared Parent (already has .venv, libs, and templates pre-baked)
-FROM ghcr.io/danielmtzbarba/quant-server-mt5-base:latest
+ARG GITHUB_REPOSITORY_OWNER=danielmtzbarba
+FROM ghcr.io/${GITHUB_REPOSITORY_OWNER}/quant-server-mt5-base:latest
 LABEL org.opencontainers.image.source=https://github.com/danielmtzbarba/quant-server-mt5
 
 # Set up the service-specific app directory

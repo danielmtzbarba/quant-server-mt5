@@ -12,9 +12,17 @@ sleep 2
 echo "Starting X11VNC for graphical debugging (Port 5900)..."
 x11vnc -display :0 -bg -forever -nopw -quiet -listen 0.0.0.0 -xkb
 
+echo "--- Runtime Diagnostics ---"
+echo "Working Directory: $(pwd)"
+echo "Listing /app/services:"
+ls -F /app/services/ || echo "Failed to list /app/services"
+echo "Wine View (Z:\\app\\services):"
+wine cmd /c "dir Z:\\app\\services" || echo "Wine failed to see Z:\\app\\services"
+echo "---------------------------"
+
 echo "Neutralizing legacy Expert Advisors (EAs) to prevent automated order loops..."
 rm -rf "/root/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Experts/"*
 
 echo "Starting FastAPI Windows Server as a module inside Wine..."
-export PYTHONPATH="Z:\\app"
-wine /root/.wine/drive_c/python/python.exe -m services.mt5_service.app.main
+# Using wine cmd /c to ensure PYTHONPATH is set in the Windows environment
+wine cmd /c "set PYTHONPATH=Z:\\app && C:\\python\\python.exe -m services.mt5_service.app.main"

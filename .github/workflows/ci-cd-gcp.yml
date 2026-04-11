@@ -179,6 +179,8 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
             ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:${{ github.sha }}
+          build-args: |
+            GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
@@ -234,19 +236,18 @@ jobs:
 
           export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
 
-          docker compose -f infra/docker/server/docker-compose.yml down --remove-orphans
           docker compose -f infra/docker/server/docker-compose.yml pull
-          docker compose -f infra/docker/server/docker-compose.yml up -d --build
+          docker compose -f infra/docker/server/docker-compose.yml up -d --remove-orphans
           docker compose -f infra/docker/server/docker-compose.yml restart caddy
 
           # 4. Success Verification (Health Check)
           echo "Running health checks..."
           max_retries=12
           for j in $(seq 1 $max_retries); do
-            core_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/ || echo "000")
-            msg_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8003/ || echo "000")
+            core_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/health || echo "000")
+            msg_ok=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8003/health || echo "000")
 
-            if [[ "$core_ok" != "000" && "$exec_ok" != "000" && "$msg_ok" != "000" ]]; then
+            if [[ "$core_ok" != "000" && "$msg_ok" != "000" ]]; then
               echo "--------------------------------------------------------"
               echo "SUCCESS: All services are UP and responding!"
               echo "Tailscale IP: $(tailscale ip -4)"

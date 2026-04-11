@@ -6,8 +6,6 @@ services:
       dockerfile: services/core_service/Dockerfile
     container_name: core_service
     restart: unless-stopped
-    ports:
-      - "8001:8001"
     env_file:
       - ../../envs/shared.env
       - ../../envs/core.env
@@ -22,7 +20,6 @@ services:
         reservations:
           memory: 128m
 
-
   messaging-service:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/messaging_service:latest
     build:
@@ -30,8 +27,6 @@ services:
       dockerfile: services/messaging_service/Dockerfile
     container_name: messaging_service
     restart: unless-stopped
-    ports:
-      - "8003:8003"
     env_file:
       - ../../envs/shared.env
       - ../../envs/messaging.env

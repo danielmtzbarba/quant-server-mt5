@@ -7,6 +7,8 @@ on:
     paths:
       - ".github/workflows/cd-azure.yml"
       - "infra/terraform/azure/**"
+      - "infra/docker/base.Dockerfile"
+      - "infra/docker/mt5-base.Dockerfile"
       - "infra/docker/trading_engine/docker-compose.yml"
       - "services/mt5_service/**"
       - "services/sync_service/**"
@@ -95,6 +97,16 @@ jobs:
           cache-from: type=gha,scope=base-image
           cache-to: type=gha,mode=max,scope=base-image
 
+      - name: Build and Push Wine Base
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./infra/docker/mt5-base.Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/quant-server-mt5-wine-base:latest
+          cache-from: type=gha,scope=wine-base
+          cache-to: type=gha,mode=max,scope=wine-base
+
   build-and-push:
     name: Build Services
     needs: [terraform, build-base]
@@ -125,6 +137,8 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
             ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:${{ github.sha }}
+          build-args: |
+            GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 

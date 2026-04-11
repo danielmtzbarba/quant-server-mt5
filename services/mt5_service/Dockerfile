@@ -1,60 +1,29 @@
-FROM ubuntu:22.04
+# Lean MT5 Service Dockerfile
+# Inherits from the Master Wine Base to ensure fast builds.
+
+ARG GITHUB_REPOSITORY_OWNER=danielmtzbarba
+FROM ghcr.io/${GITHUB_REPOSITORY_OWNER}/quant-server-mt5-wine-base:latest
+
 LABEL org.opencontainers.image.source=https://github.com/danielmtzbarba/quant-server-mt5
 
-ENV DEBIAN_FRONTEND=noninteractive
-ENV WINEPREFIX=/root/.wine
-ENV WINEARCH=win64
-ENV DISPLAY=:0
-ENV PYTHONHASHSEED=0
-
-# 1. Install prerequisites (Wine, Xvfb, x11vnc, unzip, winetricks)
-RUN dpkg --add-architecture i386 && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
-    wine wine64 wine32 xauth xvfb wget x11vnc software-properties-common winbind unzip ca-certificates winetricks && \
-    rm -rf /var/lib/apt/lists/*
-
-
-# 2. Initialize Wine and install VC Redist
-RUN xvfb-run -a wineboot -u && \
-    xvfb-run -a winetricks -q vcrun2015
-
-# 3. Install Python via Embeddable Zip
-WORKDIR /root/.wine/drive_c/python
-RUN wget -q https://www.python.org/ftp/python/3.8.10/python-3.8.10-embed-amd64.zip && \
-    unzip python-3.8.10-embed-amd64.zip && \
-    rm python-3.8.10-embed-amd64.zip
-
-# 4. Fix Python path to enable site-packages
-RUN sed -i 's/#import site/import site/g' python38._pth
-
-# 5. Install Pip
-RUN wget -q https://bootstrap.pypa.io/pip/3.8/get-pip.py && \
-    xvfb-run -a wine /root/.wine/drive_c/python/python.exe get-pip.py && \
-    rm get-pip.py
-
-# 6. Install MT5 + FastAPI + httpx + common dependencies
-RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install \
-    MetaTrader5 fastapi uvicorn httpx rich python-dotenv pydantic-settings
-
-
-# 7. Pull the pre-installed MT5 portable archive from GitHub Releases
+# 1. Pull the pre-installed MT5 portable archive from GitHub Releases
 RUN wget -qO /tmp/mt5.tar.gz "https://github.com/danielmtzbarba/quant-server-mt5/releases/download/v0.1.0-alpha/mt5.tar.gz"
 
-# 8. Unzip them directly into the Wine C: drive
+# 2. Unzip them directly into the Wine C: drive
 RUN mkdir -p "/root/.wine/drive_c/Program Files/" && \
     tar -xzf /tmp/mt5.tar.gz -C "/root/.wine/drive_c/Program Files/" && \
     rm /tmp/mt5.tar.gz
 
-# 9. Copy and Install shared libs
+# 3. Copy and Install shared libs
 WORKDIR /app
 COPY libs /app/libs
 RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install \
     /app/libs/common_config /app/libs/common_logging
 
-# 10. Copy Application context (ensure full package path for Python -m)
+# 4. Copy Application context (ensure full package path for Python -m)
 COPY services/__init__.py /app/services/__init__.py
 COPY services/mt5_service /app/services/mt5_service
+RUN touch /app/services/__init__.py /app/services/mt5_service/__init__.py
 COPY services/mt5_service/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
