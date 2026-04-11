@@ -238,12 +238,16 @@ name = "common-logging"
 version = "0.1.0"
 source = { editable = "libs/common_logging" }
 dependencies = [
+    { name = "prometheus-client" },
+    { name = "prometheus-fastapi-instrumentator" },
     { name = "rich" },
     { name = "structlog" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "prometheus-client" },
+    { name = "prometheus-fastapi-instrumentator" },
     { name = "rich" },
     { name = "structlog" },
 ]

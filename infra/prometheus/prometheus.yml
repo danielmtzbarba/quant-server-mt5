@@ -21,7 +21,7 @@ scrape_configs:
 
   - job_name: 'node-exporter-gcp'
     static_configs:
-      - targets: ['localhost:9100']
+      - targets: ['host.docker.internal:9100']
 
   - job_name: 'node-exporter-azure'
     static_configs:

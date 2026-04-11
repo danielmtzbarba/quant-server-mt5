@@ -1,4 +1,9 @@
 [project]
 name = "common-logging"
 version = "0.1.0"
-dependencies = ["rich", "structlog"]
+dependencies = [
+    "rich",
+    "structlog",
+    "prometheus-fastapi-instrumentator",
+    "prometheus-client"
+]
