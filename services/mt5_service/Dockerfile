@@ -52,8 +52,9 @@ COPY libs /app/libs
 RUN xvfb-run -a wine /root/.wine/drive_c/python/python.exe -m pip install \
     /app/libs/common_config /app/libs/common_logging
 
-# 10. Copy Application context
-COPY services/mt5_service/app /app/services/mt5_service/app
+# 10. Copy Application context (ensure full package path for Python -m)
+COPY services/__init__.py /app/services/__init__.py
+COPY services/mt5_service /app/services/mt5_service
 COPY services/mt5_service/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
