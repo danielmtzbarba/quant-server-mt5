@@ -43,6 +43,19 @@ Every service exposes standard FastAPI and Python metrics via `/metrics`.
 
 ---
 
+## Host Metrics (Node Exporter)
+**Targets**: `localhost:9100` (GCP), `mt5-engine-azure:9100` (Azure)
+
+| Metric Name | Type | Description |
+| :--- | :--- | :--- |
+| `node_cpu_seconds_total` | Counter | Seconds the CPUs spent in each mode. |
+| `node_memory_MemAvailable_bytes` | Gauge | Memory information analyzed by /proc/meminfo. |
+| `node_filesystem_free_bytes` | Gauge | Free space on the filesystem in bytes. |
+| `node_network_receive_bytes_total` | Counter | Total number of bytes received via network. |
+| `node_load1` | Gauge | 1m load average. |
+
+---
+
 ## Access & Security
 - **Internal Only**: The `/metrics` endpoints are only accessible within the **Tailscale network**.
 - **GCP access**: Prometheus scrapes services via the internal Docker bridge network.

@@ -49,5 +49,22 @@ services:
     ports:
       - "8086:8086"
 
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    container_name: node_exporter
+    command:
+      - '--path.rootfs=/host'
+    network_mode: host
+    pid: host
+    restart: unless-stopped
+    volumes:
+      - '/:/host:ro,rslave'
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+        reservations:
+          memory: 32m
+
 volumes:
   influxdb_data:
