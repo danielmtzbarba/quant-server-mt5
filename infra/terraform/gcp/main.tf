@@ -63,18 +63,6 @@ resource "google_compute_firewall" "allow_web" {
   target_tags   = ["quant-server"]
 }
 
-resource "google_compute_firewall" "allow_admin_vault" {
-  name    = "allow-admin-vault"
-  network = "default"
-
-  allow {
-    protocol = "tcp"
-    ports    = ["8001", "8002"]
-  }
-
-  source_ranges = ["${var.ADMIN_IP}/32"]
-  target_tags   = ["quant-server"]
-}
 
 # ---------------------------------------------------------------------------
 # 3. Secret Manager Setup

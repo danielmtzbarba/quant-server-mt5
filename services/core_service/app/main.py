@@ -67,7 +67,20 @@ async def verify_admin_token(token: str | None = None):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return HTMLResponse(
+        content="""
+        <html>
+            <head><title>Quant Server Core</title></head>
+            <body style="font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #0f172a; color: #38bdf8;">
+                <div style="text-align: center; border: 1px solid #1e293b; padding: 2rem; border-radius: 12px; background: #1e293b;">
+                    <h1>Quant Server Core</h1>
+                    <p style="color: #94a3b8;">Service is operational.</p>
+                    <div style="font-size: 0.8rem; margin-top: 1rem; color: #64748b;">(Internal Interface)</div>
+                </div>
+            </body>
+        </html>
+        """
+    )
 
 
 @app.get("/health")

@@ -1,8 +1,8 @@
 services:
   mt5-service:
     build:
-      context: ../../../services/mt5_service
-      dockerfile: Dockerfile
+      context: ../../../
+      dockerfile: services/mt5_service/Dockerfile
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-danielmtzbarba}/mt5_service:latest
     container_name: mt5_service
     network_mode: "host"
