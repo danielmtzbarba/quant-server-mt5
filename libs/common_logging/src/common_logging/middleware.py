@@ -42,6 +42,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         "/api/health",
         "/health",
         "/sync_status",
+        "/metrics",
     }
 
     async def dispatch(self, request: Request, call_next):
