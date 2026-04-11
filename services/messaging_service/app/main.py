@@ -74,6 +74,7 @@ async def handle_notification(request: Request):
     payload = await request.json()
     phone = payload.get("phone")
     event_type = payload.get("event")
+    logger.info(f"Event ➔ User ({phone}: {event_type})")
     data = payload.get("data", {})
 
     if not phone or not event_type:

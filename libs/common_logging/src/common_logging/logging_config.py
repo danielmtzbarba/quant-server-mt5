@@ -43,6 +43,7 @@ def setup_logging(
         "apscheduler",
         "httpx",
         "sqlalchemy.engine",
+        "uvicorn",
     ]:
         logging.getLogger(logger_name).setLevel(logging.WARNING)
 

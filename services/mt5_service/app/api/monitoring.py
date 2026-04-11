@@ -11,6 +11,7 @@ router = APIRouter(prefix="/api", tags=["Monitoring"])
 
 @router.get("/health")
 def health_check():
+    logger.info("API: GET Health")
     info = mt5_service.get_terminal_info()
     if info is None:
         return {"status": "unhealthy", "error": "MT5 Unavailable"}
@@ -23,6 +24,7 @@ def health_check():
 
 @router.get("/positions")
 def get_positions():
+    logger.info("API: GET Positions")
     pos = mt5_service.get_positions()
     return [p._asdict() for p in pos] if pos else []
 
@@ -38,11 +40,13 @@ def set_symbols(symbols: List[str]):
 
 @router.get("/symbols")
 def get_symbols():
+    logger.info("API: GET Symbols")
     return {"tracked": list(mt5_service.tracked_symbols)}
 
 
 @router.get("/history")
 def get_history(symbol: str, count: int = 1000):
+    logger.info(f"API: GET History ({symbol})")
     rates = mt5_service.fetch_rates(symbol, count)
     if rates is None:
         raise HTTPException(status_code=404, detail="No rates found")

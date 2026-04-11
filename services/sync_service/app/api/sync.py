@@ -29,16 +29,19 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 @router.get("/sync_status")
 async def get_sync_status(symbol: str = Query(...)):
+    logger.info(f"SYNC: GET Status ({symbol})")
     return sync_service.get_sync_status(symbol)
 
 
 @router.get("/check_repair")
 async def check_repair(symbol: str = Query(...)):
+    logger.info(f"SYNC: CHECK Repair ({symbol})")
     return sync_service.check_repair(symbol)
 
 
 @router.post("/verify_history")
 async def verify_history(payload: TradeDBPayload):
+    logger.info(f"SYNC: VERIFY History ({payload.symbol})")
     return sync_service.verify_history(
         payload.symbol, payload.gmt_offset, [c.model_dump() for c in payload.candles]
     )
@@ -46,6 +49,7 @@ async def verify_history(payload: TradeDBPayload):
 
 @router.post("/api/backfill")
 async def backfill_history(symbol: str, days: int = 7):
+    logger.info(f"SYNC: BACKFILL {symbol} for {days} days")
     success = await sync_service.backfill_history(symbol, days)
     if success:
         return {"status": "success"}
@@ -55,12 +59,14 @@ async def backfill_history(symbol: str, days: int = 7):
 @router.post("/api/order")
 async def proxy_order(trade: TradeRequest):
     """Proxy order requests to the actual MT5 service."""
+    logger.info(f"PROXY: ORDER {trade.action} on {trade.symbol}")
     return await mt5_client.place_order(trade.model_dump())
 
 
 @router.get("/api/positions")
 async def get_mt5_positions():
     """Proxy to get current MT5 positions."""
+    logger.info("PROXY: GET Positions")
     return await mt5_client.get_positions()
 
 
@@ -70,6 +76,7 @@ async def get_mt5_positions():
 @router.post("/report")
 async def mt5_report(request: Request, mt5_login: str = Query(...)):
     """Complete position report from MT5."""
+    logger.info(f"SYNC: REPORT for {mt5_login}")
     data = await request.json()
     await trading_service.handle_report(mt5_login, data)
     return {"status": "success"}
@@ -78,6 +85,7 @@ async def mt5_report(request: Request, mt5_login: str = Query(...)):
 @router.post("/signal")
 async def receive_signal(signal: Any):  # Or use TradingSignal schema
     """Entry point for external signals."""
+    logger.info("SYNC: SIGNAL received")
     from common_events import TradingSignal
 
     if isinstance(signal, dict):
@@ -90,6 +98,7 @@ async def receive_signal(signal: Any):  # Or use TradingSignal schema
 
 @router.post("/position_event")
 async def position_event(event: PositionEvent, mt5_login: str = Query(...)):
+    logger.info(f"SYNC: EVENT {event.status} for {mt5_login}")
     if event.status == "OPENED":
         await trading_service.handle_position_opened(mt5_login, event)
     elif event.status == "CLOSED":
@@ -99,18 +108,21 @@ async def position_event(event: PositionEvent, mt5_login: str = Query(...)):
 
 @router.post("/position_opened")
 async def position_opened(event: PositionEvent, mt5_login: str = Query(...)):
+    logger.info(f"SYNC: OPENED event for {mt5_login}")
     await trading_service.handle_position_opened(mt5_login, event)
     return {"status": "success"}
 
 
 @router.post("/position_closed")
 async def position_closed(event: PositionEvent, mt5_login: str = Query(...)):
+    logger.info(f"SYNC: CLOSED event for {mt5_login}")
     await trading_service.handle_position_closed(mt5_login, event)
     return {"status": "success"}
 
 
 @router.post("/trade_error")
 async def trade_error(event: TradeErrorEvent, mt5_login: str = Query(...)):
+    logger.info(f"SYNC: ERROR for {mt5_login}")
     await trading_service.handle_trade_error(mt5_login, event)
     return {"status": "success"}
 
@@ -170,9 +182,11 @@ async def dashboard(request: Request, symbol: str = "EURUSD", count: int = 288):
 
 @router.get("/portfolio", response_class=HTMLResponse)
 async def portfolio(request: Request):
+    logger.info("VIEW: Portfolio")
     return templates.TemplateResponse("portfolio.html", {"request": request})
 
 
 @router.get("/admin", response_class=HTMLResponse)
 async def admin(request: Request):
+    logger.info("VIEW: Admin")
     return templates.TemplateResponse("admin.html", {"request": request})

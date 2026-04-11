@@ -26,7 +26,7 @@ from .models.watchlist import WatchlistItem
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Initializing Core Service...")
+    logger.info("Core Service Ready on port 8001")
     # Definitive runtime silence for Uvicorn logs
     for name in ["uvicorn", "uvicorn.access", "uvicorn.error", "uvicorn.asgi"]:
         uv_logger = logging.getLogger(name)
@@ -146,6 +146,7 @@ async def signup_init(phone_number: str, db: AsyncSession = Depends(get_db)):
 
 @app.get("/signup/session/{phone_number}")
 async def get_signup_session(phone_number: str, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: GET Session {phone_number}")
     from .models.auth import SignupSession
 
     result = await db.execute(
@@ -171,6 +172,7 @@ async def get_user_by_id(user_id: int, db: AsyncSession = Depends(get_db)):
 async def update_signup_session(
     phone_number: str, updates: dict, db: AsyncSession = Depends(get_db)
 ):
+    logger.info(f"DB: PATCH Session {phone_number}")
     from .models.auth import SignupSession
 
     result = await db.execute(
@@ -303,6 +305,7 @@ async def delete_alert(alert_id: int, user_id: int, db: AsyncSession = Depends(g
 @app.get("/accounts/verify/{account_number}")
 async def verify_account(account_number: str, db: AsyncSession = Depends(get_db)):
     """Used by MT5 EA to verify if the current terminal is registered/authorized."""
+    logger.info(f"DB: VERIFY Account {account_number}")
     from .models.trading import BrokerAccount
     from .models.user import User
 
@@ -321,6 +324,7 @@ async def verify_account(account_number: str, db: AsyncSession = Depends(get_db)
 
 @app.get("/accounts/{account_id}/user")
 async def get_account_user(account_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DB: GET User for Acc {account_id}")
     from sqlalchemy import select
     from .models.trading import BrokerAccount
     from .models.user import User
@@ -344,6 +348,7 @@ async def create_broker_account(
     account_type: str = "MT5",
     db: AsyncSession = Depends(get_db),
 ):
+    logger.info(f"DB: CREATE Account {account_number} for User {user_id}")
     from .models.trading import BrokerAccount
 
     # Check if exists
@@ -370,6 +375,7 @@ async def create_broker_account(
 
 @app.get("/strategies")
 async def list_strategies(db: AsyncSession = Depends(get_db)):
+    logger.info("DB: LIST Strategies")
     from .models.trading import Strategy
 
     result = await db.execute(select(Strategy))
@@ -380,6 +386,7 @@ async def list_strategies(db: AsyncSession = Depends(get_db)):
 async def subscribe_to_strategy(
     strategy_name: str, user_id: int, db: AsyncSession = Depends(get_db)
 ):
+    logger.info(f"DB: SUBSCRIBE User {user_id} ➔ {strategy_name}")
     from .models.trading import Strategy, UserStrategy
 
     # 1. Get Strategy
@@ -410,6 +417,7 @@ async def subscribe_to_strategy(
 async def get_strategy_subscribers(
     strategy_name: str, db: AsyncSession = Depends(get_db)
 ):
+    logger.info(f"DB: GET Subscribers for {strategy_name}")
     from .models.trading import Strategy
     from .models.user import User
     from .models.auth import SignupSession
@@ -586,6 +594,7 @@ async def close_position(
 async def admin_dashboard(
     request: Request, token: str | None = None, db: AsyncSession = Depends(get_db)
 ):
+    logger.info("ADMIN: GET Dashboard")
     await verify_admin_token(token)
 
     # 1. Fetch Users
@@ -662,5 +671,4 @@ async def admin_delete(
 
 
 if __name__ == "__main__":
-    logger.info("Core Service Ready on port 8001")
     uvicorn.run(app, host="0.0.0.0", port=8001)

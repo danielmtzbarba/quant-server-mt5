@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-
+import logging
 from common_logging import setup_logging
 from .core.mt5_service import mt5_service
 from .api.trading import router as trading_router
@@ -13,6 +13,11 @@ logger = setup_logging("mt5-service", tag="MT5", color="green")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize MT5
+    for name in ["uvicorn", "uvicorn.access", "uvicorn.error", "uvicorn.asgi"]:
+        uv_logger = logging.getLogger(name)
+        uv_logger.handlers = []
+        uv_logger.propagate = False
+        uv_logger.setLevel(logging.WARNING)
     if not mt5_service.initialize():
         logger.critical("Failed to initialize MT5 Service.")
 
