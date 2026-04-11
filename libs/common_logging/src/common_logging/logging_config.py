@@ -81,4 +81,9 @@ def setup_logging(service_name: str, level: int = logging.INFO):
         for handler in logger.handlers[:]:
             logger.removeHandler(handler)
 
+    # Explicitly set the levels for uvicorn loggers again to be absolutely sure
+    # Some libraries re-initialize logging, so we force it.
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+
     return structlog.get_logger(service_name)

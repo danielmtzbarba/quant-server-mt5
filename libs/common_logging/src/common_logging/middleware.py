@@ -35,25 +35,38 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     Middleware that logs the start and finish of every request with metadata.
     """
 
+    DEBUG_PATHS = {
+        "/api/symbols",
+        "/api/history",
+        "/api/positions",
+        "/api/health",
+        "/health",
+        "/sync_status",
+    }
+
     async def dispatch(self, request: Request, call_next):
         start_time = time.perf_counter()
-
         user_agent = request.headers.get("user-agent", "unknown")
+        path = request.url.path
 
-        logger.info(
+        # Determine log level based on path noise
+        is_noisy = path in self.DEBUG_PATHS
+        log_func = logger.debug if is_noisy else logger.info
+
+        log_func(
             "request_started",
             method=request.method,
-            path=request.url.path,
+            path=path,
             user_agent=user_agent,
         )
 
         response = await call_next(request)
 
         process_time = time.perf_counter() - start_time
-        logger.info(
+        log_func(
             "request_finished",
             method=request.method,
-            path=request.url.path,
+            path=path,
             status_code=response.status_code,
             duration=f"{process_time:.4f}s",
         )

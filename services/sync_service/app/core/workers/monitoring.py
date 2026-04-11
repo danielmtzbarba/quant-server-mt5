@@ -1,6 +1,7 @@
 import asyncio
 import httpx
 import structlog
+import logging
 from ..config import settings
 from ..mt5_client import mt5_client
 
@@ -24,7 +25,8 @@ class PositionMonitor:
             set(p["ticket"] for p in initial_pos) if initial_pos is not None else set()
         )
 
-        logger.info(f"Initialized with {len(self.active_positions)} positions.")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Initialized with {len(self.active_positions)} positions.")
 
         while True:
             try:

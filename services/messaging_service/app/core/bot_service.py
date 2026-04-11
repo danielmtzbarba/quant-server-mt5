@@ -1,4 +1,5 @@
 import httpx
+import structlog
 import logging
 from common_config import get_env_var
 from .agent.agent_graph import get_agent_executor_singleton
@@ -6,7 +7,7 @@ from langchain_core.messages import HumanMessage
 from ..infra.whatsapp import msg_types as msgs
 from .whatsapp_service import whatsapp_service
 
-logger = logging.getLogger("messaging-service")
+logger = structlog.get_logger(__name__)
 CORE_SERVICE_URL = get_env_var("CORE_SERVICE_URL", "http://core-service:8001")
 
 
@@ -30,9 +31,10 @@ class BotService:
                 resp = await client.get(f"{CORE_SERVICE_URL}/users/{msg.number}")
 
                 if resp.status_code == 404:
-                    logger.info(
-                        f"User {msg.number} not found. Initializing atomic signup flow."
-                    )
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(
+                            f"User {msg.number} not found. Initializing atomic signup flow."
+                        )
                     signup_resp = await client.post(
                         f"{CORE_SERVICE_URL}/users/signup/init",
                         params={"phone_number": msg.number},

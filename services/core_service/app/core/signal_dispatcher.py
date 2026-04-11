@@ -1,6 +1,7 @@
 import httpx
 import asyncio
 import structlog
+import logging
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,7 +51,8 @@ class SignalDispatcher:
         subscribers = result.scalars().all()
 
         if not subscribers:
-            logger.info(f"No active subscribers for {strategy_name}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"No active subscribers for {strategy_name}")
             return {"status": "no_subscribers"}
 
         async with httpx.AsyncClient() as client:
@@ -140,9 +142,10 @@ class SignalDispatcher:
                     timeout=10.0,
                 )
                 if resp.status_code == 200:
-                    logger.info(
-                        f"Execution success for {user.name} ({acc.account_number})"
-                    )
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(
+                            f"Execution success for {user.name} ({acc.account_number})"
+                        )
                 else:
                     logger.error(f"Execution rejected for {user.name}: {resp.text}")
             except Exception as e:
@@ -152,7 +155,8 @@ class SignalDispatcher:
         self, db: AsyncSession, event_type: str, mt5_login: str, data: dict
     ):
         """Handles real-time position events (OPENED/CLOSED/ERROR)."""
-        logger.info(f"Position Event: {event_type} for {mt5_login}")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Position Event: {event_type} for {mt5_login}")
 
         # 1. Resolve Account & User
         from sqlalchemy import select

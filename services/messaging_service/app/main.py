@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 import uvicorn
+import logging
 from fastapi.responses import PlainTextResponse
 from .core.bot_service import bot_service
 from .core.config import settings
@@ -30,7 +31,8 @@ async def health_check():
 
 @app.get("/webhook")
 async def verify_challenge(request: Request):
-    logger.info("GET /webhook (Verification)")
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("GET /webhook (Verification)")
     # Safe Identity: Log the first 3 chars of expected token to verify sync
     expected_preview = (
         (settings.WHATSAPP_AUTH_TOKEN[:3] + "...")
@@ -68,7 +70,8 @@ async def receive_message(request: Request):
 async def send_message_api(request: Request):
     payload = await request.json()
     to = payload.get("to")
-    logger.info(f"Server ➔ User ({to})")
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"Server ➔ User ({to})")
     text = payload.get("text")
     if to and text:
         from .infra.whatsapp.utils import send_message
@@ -84,7 +87,8 @@ async def handle_notification(request: Request):
     payload = await request.json()
     phone = payload.get("phone")
     event_type = payload.get("event")
-    logger.info(f"Event ➔ User ({phone}: {event_type})")
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"Event ➔ User ({phone}: {event_type})")
     data = payload.get("data", {})
 
     if not phone or not event_type:
