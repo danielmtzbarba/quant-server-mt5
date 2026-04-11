@@ -100,4 +100,4 @@ async def handle_notification(request: Request):
 
 if __name__ == "__main__":
     logger.info("Messaging Service Ready on port 8003")
-    uvicorn.run(app, host="0.0.0.0", port=8003, log_level="debug")
+    uvicorn.run(app, host="0.0.0.0", port=8003, log_config=None)
