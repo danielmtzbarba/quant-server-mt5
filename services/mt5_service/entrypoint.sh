@@ -21,18 +21,26 @@ wine cmd /c "dir Z:\\app\\services" || echo "Wine failed to see Z:\\app\\service
 echo "---------------------------"
 
 echo "--- Environment Audit ---"
-for var in MT5_USER MT5_PASSWORD MT5_SERVER; do
+for var in MT5_PATH MT5_LOGIN MT5_PASSWORD MT5_SERVER; do
   if [ -z "${!var}" ]; then
     echo "✖ $var is MISSING"
   else
-    echo "✓ $var is present"
+    if [[ "$var" == *"PATH"* || "$var" == *"SERVER"* ]]; then
+        echo "✓ $var is set to ${!var}"
+    else
+        echo "✓ $var is present"
+    fi
   fi
 done
 echo "--------------------------"
+
+echo "--- Python Search Path (Wine) ---"
+wine cmd /c "C:\\python\\python.exe -c \"import sys; print(sys.path)\""
+echo "---------------------------------"
 
 echo "Neutralizing legacy Expert Advisors (EAs) to prevent automated order loops..."
 rm -rf "/root/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Experts/"*
 
 echo "Starting FastAPI Windows Server as a module inside Wine..."
-# Using wine cmd /c to ensure PYTHONPATH is set in the Windows environment
-wine cmd /c "set PYTHONPATH=Z:\\app && C:\\python\\python.exe -m services.mt5_service.app.main"
+# The PYTHONPATH is now hard-wired into the Python binary's config in the base image
+wine /root/.wine/drive_c/python/python.exe -m services.mt5_service.app.main
