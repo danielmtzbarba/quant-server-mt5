@@ -35,11 +35,8 @@ done
 echo "--------------------------"
 
 echo "--- Python Search Path (Wine) ---"
-wine cmd /c "C:\\python\\python.exe -c \"import sys; print(sys.path)\""
+wine /root/.wine/drive_c/python/python.exe -c "import sys; print(sys.path)"
 echo "---------------------------------"
-
-echo "Neutralizing legacy Expert Advisors (EAs) to prevent automated order loops..."
-rm -rf "/root/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Experts/"*
 
 echo "Starting FastAPI Windows Server as a module inside Wine..."
 # The PYTHONPATH is now hard-wired into the Python binary's config in the base image
