@@ -20,6 +20,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Stage 2: Optimized Runtime Base (The Child Parent)
 # This is the image that your microservices will actually use as their base.
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS runtime
+LABEL org.opencontainers.image.source=https://github.com/danielmtzbarba/quant-server-mt5
 WORKDIR /app
 
 # Copy the initialized environment and shared assets.

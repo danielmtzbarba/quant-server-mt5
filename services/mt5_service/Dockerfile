@@ -1,4 +1,5 @@
 FROM ubuntu:22.04
+LABEL org.opencontainers.image.source=https://github.com/danielmtzbarba/quant-server-mt5
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WINEPREFIX=/root/.wine
